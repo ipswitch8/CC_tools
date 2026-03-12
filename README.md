@@ -18,3 +18,6 @@ Q: What is the "CC_multi" folder?<br>
 A1: A small script to more easily manage dozens of simultaneous Claude Code CLI sessions scattered across multiple projects on multiple servers and fully utilize multiple screens, with various features for session management, reconnection, etc.<br>
 <br>
 A2: Read the README.md file in that folder for more info.<br>
+
+
+Pro Tip - put all your prompts into Anthropic's prompt generator first:  https://platform.claude.com/dashboard
