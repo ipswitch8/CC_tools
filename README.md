@@ -6,11 +6,17 @@ A couple of commands to:
 How to use - put these folders in your ~/.claude/ folder
 
 Q: What is the "agents" folder
-A: Agents for Claude\
+
+A: Agents for Claude
+
 
 Q: What is the "commands" folder?
+
 A: Commands for Claude, described above.
 
+
 Q: What is the "CC_multi" folder?
+
 A1: A small script to more easily manage dozens of simultaneous Claude Code CLI sessions scattered across multiple projects on multiple servers and fully utilize multiple screens, with various features for session management, reconnection, etc.
+
 A2: Read the README.md file in that folder for more info.  
