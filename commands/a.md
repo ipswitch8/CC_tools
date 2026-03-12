@@ -1,0 +1,1 @@
+Use appropriate agents from the list defined in ~/.claude/agents/registry/capabilities.json to #$ARGUMENTS

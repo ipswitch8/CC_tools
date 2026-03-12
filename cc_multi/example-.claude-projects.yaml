@@ -1,0 +1,126 @@
+# ~/.claude-projects.yaml
+# Configuration file for multi-host Claude project management
+
+# Global defaults (optional)
+defaults:
+  claude_options: "--resume"
+  ssh_options: "-o ConnectTimeout=10 -o ServerAliveInterval=30"
+
+# Project definitions
+projects:
+  # Main development projects
+  - name: "WebApp-Frontend"
+    group: "Main"
+    host: "dev.example.com"
+    ssh_user: "ubuntu"
+    sudo_user: "claude-user"
+    project_folder: "/opt/webapp/frontend"
+    claude_options: "--resume"
+  
+  - name: "WebApp-Backend"
+    group: "Main"
+    host: "dev.example.com"
+    ssh_user: "ubuntu"
+    sudo_user: "claude-user"
+    project_folder: "/opt/webapp/backend"
+    claude_options: "--resume"
+  
+  - name: "WebApp-API"
+    group: "Main"
+    host: "dev.example.com"
+    ssh_user: "ubuntu"
+    sudo_user: "claude-user"
+    project_folder: "/opt/webapp/api"
+    claude_options: "--resume"
+  
+  - name: "WebApp-Database"
+    group: "Main"
+    host: "dev.example.com"
+    ssh_user: "ubuntu"
+    sudo_user: "claude-user"
+    project_folder: "/opt/webapp/database"
+    claude_options: "--continue last"
+
+  # ML/Data projects on different host
+  - name: "ML-Training"
+    group: "DataScience"
+    host: "ml.example.com"
+    ssh_user: "admin"
+    sudo_user: "ml-user"
+    project_folder: "/home/projects/ml-training"
+    claude_options: "--resume"
+  
+  - name: "ML-Pipeline"
+    group: "DataScience"
+    host: "ml.example.com"
+    ssh_user: "admin"
+    sudo_user: "ml-user"
+    project_folder: "/home/projects/ml-pipeline"
+    claude_options: "--resume"
+  
+  - name: "Data-Analysis"
+    group: "DataScience"
+    host: "192.168.1.100"
+    ssh_user: "analyst"
+    sudo_user: "claude-analyst"
+    project_folder: "/var/data/analysis"
+    claude_options: "--new"
+  
+  # Infrastructure projects
+  - name: "Infra-Terraform"
+    group: "DevOps"
+    host: "ops.example.com"
+    ssh_user: "devops"
+    sudo_user: "claude-ops"
+    project_folder: "/opt/infrastructure/terraform"
+    claude_options: "--resume"
+  
+  - name: "Infra-Kubernetes"
+    group: "DevOps"
+    host: "ops.example.com"
+    ssh_user: "devops"
+    sudo_user: "claude-ops"
+    project_folder: "/opt/infrastructure/k8s"
+    claude_options: "--resume"
+  
+  - name: "Infra-Monitoring"
+    group: "DevOps"
+    host: "ops.example.com"
+    ssh_user: "devops"
+    sudo_user: "claude-ops"
+    project_folder: "/opt/infrastructure/monitoring"
+    claude_options: "--resume"
+
+  # Documentation projects
+  - name: "Docs-API"
+    group: "Documentation"
+    host: "docs.example.com"
+    ssh_user: "writer"
+    sudo_user: "claude-docs"
+    project_folder: "/var/www/docs/api"
+    claude_options: "--resume"
+  
+  - name: "Docs-User"
+    group: "Documentation"
+    host: "docs.example.com"
+    ssh_user: "writer"
+    sudo_user: "claude-docs"
+    project_folder: "/var/www/docs/user"
+    claude_options: "--resume"
+
+  # Production support
+  - name: "Prod-WebApp"
+    group: "Production"
+    host: "prod.example.com"
+    ssh_user: "support"
+    sudo_user: "claude-support"
+    project_folder: "/opt/production/webapp"
+    claude_options: "--resume --read-only"
+  
+  - name: "Prod-Logs"
+    group: "Production"
+    host: "prod.example.com"
+    ssh_user: "support"
+    sudo_user: "claude-support"
+    project_folder: "/var/log/webapp"
+    claude_options: "--new"
