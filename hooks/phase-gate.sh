@@ -61,8 +61,22 @@ while IFS= read -r agent; do
   fi
 done < <(jq -r ".phases[$IDX].gate_agents[]" "$PIPELINE_FILE")
 
-# ── All gates passed → advance ────────────────────────────────────────────────
+# ── All gates passed → run /g then advance ────────────────────────────────────
 if [ -z "$NEXT_GATE" ]; then
+
+  # Check if /g has already run (awaiting_commit flag cleared = yes)
+  AWAITING_COMMIT=$(jq -r '.awaiting_commit // false' "$STATE_FILE")
+
+  if [ "$AWAITING_COMMIT" = "false" ]; then
+    # First fire: gates just passed — set flag and prompt /g
+    jq '.awaiting_commit = true' "$STATE_FILE" \
+      > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+
+    echo "{\"continue\": true, \"systemMessage\": \"✅ ${PHASE_NAME} — all gates passed. Run /g now to commit this phase's verified work. The phase will advance after /g completes.\"}"
+    exit 0
+  fi
+
+  # Second fire: /g has run — clear flag, advance, reset gates
   NEXT_IDX=$((IDX + 1))
 
   jq \
@@ -70,14 +84,15 @@ if [ -z "$NEXT_GATE" ]; then
     --arg pid "$PHASE_ID" \
     '.current_phase_index = $next |
      .phases_complete += [$pid] |
-     .current_gate_results = {}' \
+     .current_gate_results = {} |
+     .awaiting_commit = false' \
     "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 
   if [ "$NEXT_IDX" -ge "$TOTAL" ]; then
     echo "{\"continue\": false, \"systemMessage\": \"✅ All ${TOTAL} phases complete. Pipeline finished.\"}"
   else
     NEXT_NAME=$(jq -r ".phases[$NEXT_IDX].name" "$PIPELINE_FILE")
-    echo "{\"continue\": true, \"systemMessage\": \"✅ ${PHASE_NAME} — all gates passed. Advancing to phase $((NEXT_IDX + 1))/${TOTAL}: ${NEXT_NAME}. Load the appropriate registry shards and begin phase work.\"}"
+    echo "{\"continue\": true, \"systemMessage\": \"✅ ${PHASE_NAME} committed. Advancing to phase $((NEXT_IDX + 1))/${TOTAL}: ${NEXT_NAME}. Load the appropriate registry shards and begin phase work.\"}"
   fi
   exit 0
 fi
