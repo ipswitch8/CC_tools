@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/pre-tool-use.sh"
+            "command": "~/.claude/hooks/pre-tool-use.sh"
           }
         ]
       }
@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/require-pipeline.sh"
+            "command": "~/.claude/hooks/require-pipeline.sh"
           }
         ]
       }
@@ -30,11 +30,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/validate-pipeline.sh"
+            "command": "~/.claude/hooks/validate-pipeline.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/phase-gate.sh"
+            "command": "~/.claude/hooks/phase-gate.sh"
           }
         ]
       }
@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/phase-gate.sh"
+            "command": "~/.claude/hooks/phase-gate.sh"
           }
         ]
       }
@@ -54,7 +54,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/session-resume.sh"
+            "command": "~/.claude/hooks/session-resume.sh"
           }
         ]
       }
