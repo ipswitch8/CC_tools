@@ -55,6 +55,7 @@ When invoked with a task description:
   "current_phase_index": 0,
   "phases_complete": [],
   "current_gate_results": {},
+  "awaiting_commit": false,
   "session_started": "<ISO 8601 timestamp>"
 }
 ```
