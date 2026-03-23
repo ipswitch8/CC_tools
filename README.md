@@ -4,7 +4,7 @@ A couple of commands to:\
 /k = a specific agent used to verify Claude's most recent work in a project (i.e. after /a)\
 /g = submit changes to the project Git repo (i.e. after /k, or maybe both before and after depending on the amount of work done!)\
 \
-How to use - put these folders in your ~/.claude/ folder and merge the CLAUDE.md and settings.json with your existing ones.
+How to use - put these folders in your ~/.claude/ folder and merge the CLAUDE.md and settings.json with your existing ones.\
 \
 Q: What is the "agents" folder\
 A: Agents for Claude\
