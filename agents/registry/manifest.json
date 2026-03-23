@@ -1,0 +1,162 @@
+{
+  "version": 2,
+  "total_agents": 114,
+  "description": "Read this file first. Identify which shards are relevant to the task and load only those. Do not load all shards at once. The pipeline shard and meta shard should be loaded for any complex or multi-phase task.",
+  "shards": {
+    "pipeline": {
+      "file": "shards/pipeline.json",
+      "agent_count": 5,
+      "description": "Pipeline planning and phase gate agents: planner, validator, test-runner, security-audit, perf-benchmarks",
+      "load_when": [
+        "multi-phase task",
+        "phased execution",
+        "planner agent needed",
+        "gate agents needed",
+        "complex multi-step implementation",
+        "pipeline.json management"
+      ]
+    },
+    "meta": {
+      "file": "shards/meta.json",
+      "agent_count": 3,
+      "description": "Workflow orchestration and session management: orchestrator, agent-organizer, context-manager",
+      "load_when": [
+        "coordinating multiple agents",
+        "workflow orchestration",
+        "managing agent context",
+        "always load for complex tasks"
+      ]
+    },
+    "architecture": {
+      "file": "shards/architecture.json",
+      "agent_count": 8,
+      "description": "System and solution architects: backend-architect, cloud-architect, database-architect, frontend-architect, microservices-architect, security-architect, network-infrastructure-analyst, architect-reviewer",
+      "load_when": [
+        "system design",
+        "architecture review",
+        "cloud infrastructure",
+        "microservices design",
+        "database architecture",
+        "network design"
+      ]
+    },
+    "development": {
+      "file": "shards/development.json",
+      "agent_count": 28,
+      "description": "Language and framework specialists: React, Vue, Next.js, TypeScript, JavaScript, Python, Node.js, Go, Java, Ruby, Rust, PHP, .NET, Django, FastAPI, Express, MySQL, fullstack, mobile, devops, legacy assessment",
+      "load_when": [
+        "writing or implementing code",
+        "language-specific work",
+        "framework-specific work",
+        "frontend development",
+        "backend development",
+        "database queries",
+        "mobile development",
+        "API implementation",
+        "legacy code work"
+      ]
+    },
+    "testing": {
+      "file": "shards/testing.json",
+      "agent_count": 22,
+      "description": "QA and test specialists: unit, integration, e2e, API, accessibility, performance, load, mobile, visual regression, mutation, contract, localization, browser, chaos, UI, code quality, CLAUDE.md compliance",
+      "load_when": [
+        "writing tests",
+        "test strategy",
+        "QA review",
+        "accessibility testing",
+        "performance testing",
+        "load testing",
+        "visual regression",
+        "test coverage",
+        "code quality review"
+      ]
+    },
+    "security": {
+      "file": "shards/security.json",
+      "agent_count": 11,
+      "description": "Security specialists: API security, SAST scanning, container security, dependency scanning, infrastructure scanning, secrets detection, database security, compliance automation, penetration testing, code review, regression",
+      "load_when": [
+        "security review",
+        "vulnerability scanning",
+        "penetration testing",
+        "secrets management",
+        "compliance requirements",
+        "auth or credential work",
+        "dependency audit",
+        "container security"
+      ]
+    },
+    "data-ai": {
+      "file": "shards/data-ai.json",
+      "agent_count": 10,
+      "description": "Data and AI specialists: data-analyst, data-engineer, data-scientist, ai-engineer, llm-architect, machine-learning-engineer, mlops-engineer, nlp-engineer, postgres-pro, prompt-engineer",
+      "load_when": [
+        "data analysis",
+        "machine learning",
+        "AI/LLM work",
+        "data pipelines",
+        "NLP tasks",
+        "MLOps",
+        "prompt engineering",
+        "PostgreSQL optimization",
+        "data science"
+      ]
+    },
+    "business": {
+      "file": "shards/business.json",
+      "agent_count": 8,
+      "description": "Business and product roles: business-analyst, product-manager, technical-writer, ux-researcher, customer-success-manager, content-marketer, sales-engineer, scrum-master",
+      "load_when": [
+        "product requirements",
+        "business analysis",
+        "documentation",
+        "UX research",
+        "agile/scrum",
+        "content creation",
+        "customer success",
+        "sales engineering"
+      ]
+    },
+    "developer-experience": {
+      "file": "shards/developer-experience.json",
+      "agent_count": 7,
+      "description": "DX and tooling specialists: build-engineer, cli-developer, dependency-manager, documentation-engineer, git-workflow-manager, legacy-modernizer, refactoring-specialist",
+      "load_when": [
+        "build system work",
+        "CLI development",
+        "dependency management",
+        "git workflow",
+        "refactoring",
+        "legacy modernization",
+        "developer tooling"
+      ]
+    },
+    "research": {
+      "file": "shards/research.json",
+      "agent_count": 4,
+      "description": "Research and analysis: competitive-analyst, market-researcher, research-analyst, trend-analyst",
+      "load_when": [
+        "market research",
+        "competitive analysis",
+        "trend analysis",
+        "research tasks"
+      ]
+    },
+    "specialized-domains": {
+      "file": "shards/specialized-domains.json",
+      "agent_count": 8,
+      "description": "Niche domain specialists: blockchain-developer, fintech-engineer, game-developer, iot-engineer, mobile-app-developer, payment-integration, quant-analyst, seo-specialist",
+      "load_when": [
+        "blockchain or Web3",
+        "fintech or payments",
+        "game development",
+        "IoT",
+        "mobile app (native)",
+        "payment integration",
+        "quantitative analysis",
+        "SEO"
+      ]
+    }
+  }
+}

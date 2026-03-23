@@ -1,0 +1,1133 @@
+{
+  "api-specialist": {
+    "name": "api-specialist",
+    "description": "API development expert specializing in RESTful APIs, GraphQL, API design patterns, versioning, documentation, and API security",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/api-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "express",
+      "graphql",
+      "grpc",
+      "http",
+      "jwt",
+      "oauth",
+      "redis",
+      "rest",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "data-specialist": {
+    "name": "data-specialist",
+    "description": "Data specialist focusing on ETL pipelines, data processing, analytics, data validation, and working with data formats (CSV, JSON, Parquet)",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/data-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "performance",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "aws",
+      "azure",
+      "mongodb",
+      "mysql",
+      "postgresql",
+      "python"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "database-specialist": {
+    "name": "database-specialist",
+    "description": "Database specialist focused on query optimization, schema implementation, migrations, and database performance tuning",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/database-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "performance",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "dynamodb",
+      "express",
+      "mongodb",
+      "mysql",
+      "postgresql",
+      "redis",
+      "rest",
+      "sqlite",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "devops-specialist": {
+    "name": "devops-specialist",
+    "description": "DevOps specialist for CI/CD, containerization, infrastructure automation, and deployment pipelines",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/devops-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "microservices",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "ansible",
+      "aws",
+      "azure",
+      "docker",
+      "dynamodb",
+      "http",
+      "jwt",
+      "kubernetes",
+      "postgresql",
+      "redis",
+      "terraform"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "django-specialist": {
+    "name": "django-specialist",
+    "description": "Django framework specialist focusing on Django REST Framework, ORM, admin panel, authentication, and Django best practices",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/django-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "django",
+      "docker",
+      "fastapi",
+      "flask",
+      "http",
+      "jwt",
+      "oauth",
+      "postgresql",
+      "pytest",
+      "python",
+      "rest",
+      "websocket"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "dotnet-specialist": {
+    "name": "dotnet-specialist",
+    "description": ".NET development expert specializing in .NET 8+, C# 12, ASP.NET Core, Entity Framework Core, and modern .NET best practices",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/dotnet-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "microservices",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "azure",
+      "dotnet",
+      "express",
+      "http",
+      "jwt",
+      "oauth",
+      "rest"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "express-specialist": {
+    "name": "express-specialist",
+    "description": "Express.js framework specialist focusing on middleware, routing, error handling, authentication, and Express.js best practices",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/express-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "express",
+      "fastapi",
+      "flask",
+      "jest",
+      "jwt",
+      "nestjs",
+      "oauth",
+      "python",
+      "rest",
+      "typescript",
+      "websocket"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "fastapi-specialist": {
+    "name": "fastapi-specialist",
+    "description": "FastAPI framework specialist focusing on async Python, Pydantic validation, dependency injection, and FastAPI best practices",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/fastapi-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "mobile",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "django",
+      "docker",
+      "fastapi",
+      "flask",
+      "http",
+      "jwt",
+      "oauth",
+      "pytest",
+      "python",
+      "rest",
+      "sqlite",
+      "websocket"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "fullstack-developer": {
+    "name": "fullstack-developer",
+    "description": "Full-stack development expert specializing in end-to-end application development, integrating frontend and backend, and deployment",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/fullstack-developer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "microservices",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "docker",
+      "express",
+      "http",
+      "jwt",
+      "mongodb",
+      "nextjs",
+      "postgresql",
+      "python",
+      "react",
+      "rspec",
+      "typescript",
+      "vue"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "fullstack-investigator": {
+    "name": "fullstack-investigator",
+    "description": "Cross-layer data flow tracing specialist focused on understanding how data transforms across the entire application stack - from frontend UI through APIs, business logic, database queries, and back",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/fullstack-investigator.md",
+    "tools": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "backend-development",
+      "database-design",
+      "code-implementation",
+      "ui-development"
+    ],
+    "technologies": [
+      "react",
+      "vue",
+      "rest",
+      "graphql",
+      "python",
+      "javascript",
+      "postgresql",
+      "mongodb",
+      "redis"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "golang-specialist": {
+    "name": "golang-specialist",
+    "description": "Go (Golang) development expert specializing in concurrent programming, microservices, performance, and idiomatic Go patterns",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/golang-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "microservices",
+      "performance",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "golang",
+      "grpc",
+      "http",
+      "rest"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "integration-specialist": {
+    "name": "integration-specialist",
+    "description": "Integration specialist focusing on API integration, message queues, webhooks, event streaming, and connecting disparate systems",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/integration-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "microservices",
+      "mobile",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "aws",
+      "azure",
+      "express",
+      "graphql",
+      "grpc",
+      "http",
+      "jwt",
+      "oauth",
+      "rest",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "java-specialist": {
+    "name": "java-specialist",
+    "description": "Java language specialist focusing on Spring Boot, microservices, enterprise patterns, JPA/Hibernate, and modern Java features",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/java-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "microservices",
+      "mobile",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "http",
+      "java",
+      "junit",
+      "postgresql",
+      "rest",
+      "rspec"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "javascript-specialist": {
+    "name": "javascript-specialist",
+    "description": "JavaScript development expert specializing in modern ES2015+, Node.js, async patterns, functional programming, and testing",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/javascript-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "express",
+      "http",
+      "java",
+      "javascript",
+      "jest",
+      "mocha",
+      "react",
+      "rest",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "legacy-assessment-specialist": {
+    "name": "legacy-assessment-specialist",
+    "description": "Legacy code assessment specialist focused on investigating and documenting undocumented or poorly documented codebases, identifying architectural patterns, and uncovering hidden dependencies",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/legacy-assessment-specialist.md",
+    "tools": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "architecture-design",
+      "code-implementation",
+      "backend-development"
+    ],
+    "technologies": [
+      "python",
+      "java",
+      "javascript",
+      "typescript",
+      "ruby",
+      "php"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "mobile-developer": {
+    "name": "mobile-developer",
+    "description": "Mobile developer focusing on React Native, iOS/Android development, native modules, mobile UI/UX, and app deployment",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/mobile-developer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "mobile",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "http",
+      "java",
+      "jest",
+      "react",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "mysql-specialist": {
+    "name": "mysql-specialist",
+    "description": "MySQL database expert specializing in MySQL 8.0+, query optimization, indexing strategies, replication, and performance tuning",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/mysql-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "express",
+      "mysql",
+      "postgresql"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "nextjs-specialist": {
+    "name": "nextjs-specialist",
+    "description": "Next.js development expert specializing in App Router, Server Components, API Routes, SSR/SSG, and full-stack Next.js applications",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/nextjs-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "docker",
+      "http",
+      "nextjs",
+      "react",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "nodejs-backend-developer": {
+    "name": "nodejs-backend-developer",
+    "description": "Node.js backend development specialist focusing on Express, NestJS, async patterns, and RESTful/GraphQL APIs",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/nodejs-backend-developer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "microservices",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "express",
+      "graphql",
+      "http",
+      "jest",
+      "jwt",
+      "mongodb",
+      "nestjs",
+      "postgresql",
+      "react",
+      "redis",
+      "rest",
+      "typescript",
+      "websocket"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "php-specialist": {
+    "name": "php-specialist",
+    "description": "PHP development expert specializing in modern PHP 8.2+, Laravel, Symfony, Composer, and best practices for web applications",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/php-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "express",
+      "http",
+      "jwt",
+      "mysql",
+      "oauth",
+      "php",
+      "rest"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "python-backend-developer": {
+    "name": "python-backend-developer",
+    "description": "Python backend development specialist focusing on FastAPI, Django, async Python, and REST/GraphQL APIs",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/python-backend-developer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "microservices",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "django",
+      "fastapi",
+      "flask",
+      "graphql",
+      "http",
+      "jwt",
+      "mongodb",
+      "oauth",
+      "postgresql",
+      "pytest",
+      "python",
+      "rest"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "python-specialist": {
+    "name": "python-specialist",
+    "description": "Python development expert specializing in modern Python (3.11+), FastAPI, Django, async programming, type hints, and testing",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/python-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task",
+      "numpy",
+      "pandas",
+      "scikit-learn",
+      "jupyter"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "django",
+      "fastapi",
+      "flask",
+      "http",
+      "jwt",
+      "oauth",
+      "postgresql",
+      "pytest",
+      "python",
+      "rest"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "react-specialist": {
+    "name": "react-specialist",
+    "description": "React development expert specializing in React 18+, hooks, component patterns, state management, and performance optimization",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/react-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "mobile",
+      "performance",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "jest",
+      "nextjs",
+      "react",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "ruby-specialist": {
+    "name": "ruby-specialist",
+    "description": "Ruby development expert specializing in Ruby 3.2+, Rails 7+, RSpec, and Ruby best practices for web applications",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/ruby-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "microservices",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "http",
+      "jwt",
+      "rest",
+      "rspec",
+      "ruby",
+      "websocket"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "rust-specialist": {
+    "name": "rust-specialist",
+    "description": "Rust language specialist focusing on systems programming, memory safety, async Rust, performance optimization, and Rust ecosystem",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/rust-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "mobile",
+      "performance",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "http",
+      "java",
+      "javascript",
+      "python",
+      "rust"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "selenium-qa-specialist": {
+    "name": "selenium-qa-specialist",
+    "description": "QA automation expert specializing in cross-browser testing with Selenium WebDriver, focusing on Firefox and Chrome compatibility, UI/UX validation, and iterative bug verification",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/selenium-qa-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "deployment",
+      "mobile",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "docker",
+      "http",
+      "java",
+      "javascript",
+      "jest",
+      "junit",
+      "mocha",
+      "nextjs",
+      "pytest",
+      "python",
+      "react",
+      "rest",
+      "rspec",
+      "selenium"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "typescript-specialist": {
+    "name": "typescript-specialist",
+    "description": "TypeScript development expert specializing in modern TypeScript, type safety, generics, decorators, and Node.js backend development",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/typescript-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "express",
+      "http",
+      "java",
+      "javascript",
+      "jest",
+      "nestjs",
+      "react",
+      "typescript",
+      "vue"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "vue-specialist": {
+    "name": "vue-specialist",
+    "description": "Vue.js framework specialist focusing on Vue 3 Composition API, Pinia state management, Vue Router, and modern Vue.js patterns",
+    "model": "sonnet",
+    "tier": "development",
+    "file_path": "~/.claude/agents/development/vue-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "performance",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "react",
+      "typescript",
+      "vue"
+    ],
+    "test_types": [],
+    "limitations": []
+  }
+}

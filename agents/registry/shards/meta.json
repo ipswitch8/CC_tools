@@ -1,0 +1,139 @@
+{
+  "agent-organizer": {
+    "name": "agent-organizer",
+    "description": "Strategic multi-agent task coordinator that analyzes projects and creates optimal agent delegation strategies",
+    "model": "sonnet",
+    "tier": "meta",
+    "file_path": "~/.claude/agents/meta/agent-organizer.md",
+    "tools": [
+      "Read",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "microservices",
+      "mobile",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "aws",
+      "azure",
+      "django",
+      "docker",
+      "dotnet",
+      "express",
+      "fastapi",
+      "gcp",
+      "golang",
+      "graphql",
+      "java",
+      "javascript",
+      "jwt",
+      "mysql",
+      "nextjs",
+      "php",
+      "python",
+      "react",
+      "rest",
+      "ruby",
+      "rust",
+      "selenium",
+      "terraform",
+      "typescript",
+      "vue"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "context-manager": {
+    "name": "context-manager",
+    "description": "Strategic context optimization agent that manages context windows, prioritizes information, optimizes agent collaboration, and maximizes effective information flow",
+    "model": "opus",
+    "tier": "meta",
+    "file_path": "~/.claude/agents/meta/context-manager.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Task",
+      "TodoWrite"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "microservices",
+      "mobile",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "react",
+      "rest",
+      "selenium"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "orchestrator": {
+    "name": "orchestrator",
+    "description": "Workflow execution manager that coordinates multi-agent workflows through sequential and parallel task orchestration",
+    "model": "sonnet",
+    "tier": "meta",
+    "file_path": "~/.claude/agents/meta/orchestrator.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task",
+      "TodoWrite"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "deployment",
+      "mobile",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "jwt",
+      "oauth",
+      "python",
+      "react",
+      "selenium"
+    ],
+    "test_types": [],
+    "limitations": []
+  }
+}

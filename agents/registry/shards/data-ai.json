@@ -1,0 +1,322 @@
+{
+  "ai-engineer": {
+    "name": "ai-engineer",
+    "description": "Expert AI engineer specializing in AI system design, implementation, and deployment. Masters model integration, optimization, monitoring, and building production-grade AI applications with focus on reliability and performance.",
+    "model": "sonnet",
+    "tier": "data-ai",
+    "file_path": "~/.claude/agents/data-ai/ai-engineer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "deployment",
+      "microservices",
+      "performance",
+      "security",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  },
+  "data-analyst": {
+    "name": "data-analyst",
+    "description": "Expert data analyst specializing in data insights, visualization, and reporting. Masters SQL analysis, statistical methods, dashboarding, and translating data into actionable business intelligence with focus on clarity and impact.",
+    "model": "sonnet",
+    "tier": "data-ai",
+    "file_path": "~/.claude/agents/data-ai/data-analyst.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "mobile",
+      "performance",
+      "testing"
+    ],
+    "technologies": [
+      "python"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "data-engineer": {
+    "name": "data-engineer",
+    "description": "Expert data engineer specializing in ETL pipelines, data warehousing, and data quality. Masters data modeling, pipeline orchestration, and building scalable data infrastructure with focus on reliability and performance.",
+    "model": "sonnet",
+    "tier": "data-ai",
+    "file_path": "~/.claude/agents/data-ai/data-engineer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "performance",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "python"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "data-scientist": {
+    "name": "data-scientist",
+    "description": "Expert data scientist specializing in advanced analytics, statistical modeling, and machine learning research. Masters experimental design, feature engineering, model development, and translating complex data into strategic insights with focus on rigor and innovation.",
+    "model": "opus",
+    "tier": "data-ai",
+    "file_path": "~/.claude/agents/data-ai/data-scientist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "performance",
+      "testing"
+    ],
+    "technologies": [
+      "rest"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "llm-architect": {
+    "name": "llm-architect",
+    "description": "Strategic LLM architect specializing in large language model system design, architecture, and optimization. Masters model selection, cost optimization, safety, and building scalable LLM applications with focus on business value and responsible AI.",
+    "model": "opus",
+    "tier": "data-ai",
+    "file_path": "~/.claude/agents/data-ai/llm-architect.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "deployment",
+      "microservices",
+      "performance",
+      "security",
+      "ui-development"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  },
+  "machine-learning-engineer": {
+    "name": "machine-learning-engineer",
+    "description": "Expert machine learning engineer specializing in ML systems, model training, and deployment. Masters model development, training pipelines, optimization, and building production-ready ML solutions with focus on performance and reliability.",
+    "model": "sonnet",
+    "tier": "data-ai",
+    "file_path": "~/.claude/agents/data-ai/machine-learning-engineer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "deployment",
+      "microservices",
+      "performance",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  },
+  "mlops-engineer": {
+    "name": "mlops-engineer",
+    "description": "Expert MLOps engineer specializing in ML deployment, model monitoring, and infrastructure. Masters CI/CD for machine learning, model versioning, and building production-grade ML systems with focus on reliability and scalability.",
+    "model": "sonnet",
+    "tier": "data-ai",
+    "file_path": "~/.claude/agents/data-ai/mlops-engineer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "deployment",
+      "performance",
+      "security",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "docker",
+      "grpc",
+      "kubernetes",
+      "rest"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "nlp-engineer": {
+    "name": "nlp-engineer",
+    "description": "Expert NLP engineer specializing in natural language processing, text analysis, and language models. Masters text preprocessing, transformers, sentiment analysis, and building production NLP systems with focus on accuracy and performance.",
+    "model": "sonnet",
+    "tier": "data-ai",
+    "file_path": "~/.claude/agents/data-ai/nlp-engineer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "deployment",
+      "performance",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  },
+  "postgres-pro": {
+    "name": "postgres-pro",
+    "description": "Expert PostgreSQL specialist focusing on query optimization, performance tuning, and database administration. Masters indexing strategies, replication, backup/recovery, and building high-performance PostgreSQL systems with focus on reliability and scalability.",
+    "model": "sonnet",
+    "tier": "data-ai",
+    "file_path": "~/.claude/agents/data-ai/postgres-pro.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "express",
+      "postgresql",
+      "rest"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "prompt-engineer": {
+    "name": "prompt-engineer",
+    "description": "Expert prompt engineer specializing in LLM prompting, optimization, and evaluation. Masters prompt design, few-shot learning, chain-of-thought reasoning, and RAG systems with focus on reliability and performance.",
+    "model": "sonnet",
+    "tier": "data-ai",
+    "file_path": "~/.claude/agents/data-ai/prompt-engineer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "architecture-design",
+      "backend-development",
+      "deployment",
+      "performance",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  }
+}

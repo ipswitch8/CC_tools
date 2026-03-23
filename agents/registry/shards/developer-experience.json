@@ -1,0 +1,293 @@
+{
+  "build-engineer": {
+    "name": "build-engineer",
+    "description": "Build systems and CI/CD optimization specialist focusing on build optimization, caching strategies, pipeline design, artifact management, and build debugging",
+    "model": "sonnet",
+    "tier": "developer-experience",
+    "file_path": "~/.claude/agents/developer-experience/build-engineer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "docker",
+      "http",
+      "java",
+      "javascript",
+      "junit",
+      "nextjs",
+      "python",
+      "rest",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "cli-developer": {
+    "name": "cli-developer",
+    "description": "Command-line tool development specialist focusing on CLI UX, argument parsing, help systems, and developer-friendly terminal interfaces",
+    "model": "sonnet",
+    "tier": "developer-experience",
+    "file_path": "~/.claude/agents/developer-experience/cli-developer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "backend-development",
+      "code-implementation",
+      "deployment",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "java",
+      "javascript",
+      "python",
+      "rust"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "dependency-manager": {
+    "name": "dependency-manager",
+    "description": "Dependency optimization specialist focusing on dependency analysis, vulnerability scanning, version management, license compliance, and update strategies",
+    "model": "sonnet",
+    "tier": "developer-experience",
+    "file_path": "~/.claude/agents/developer-experience/dependency-manager.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "dotnet",
+      "express",
+      "java",
+      "javascript",
+      "jest",
+      "python",
+      "react",
+      "ruby",
+      "rust"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "documentation-engineer": {
+    "name": "documentation-engineer",
+    "description": "Technical documentation specialist focusing on comprehensive docs, API documentation, tutorials, style guides, and documentation automation",
+    "model": "sonnet",
+    "tier": "developer-experience",
+    "file_path": "~/.claude/agents/developer-experience/documentation-engineer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "express",
+      "graphql",
+      "http",
+      "java",
+      "javascript",
+      "jwt",
+      "oauth",
+      "python",
+      "react",
+      "rest",
+      "rust",
+      "typescript",
+      "vue"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "git-workflow-manager": {
+    "name": "git-workflow-manager",
+    "description": "Git workflow and branching strategy specialist focusing on branching models, merge strategies, conflict resolution, commit conventions, and workflow automation",
+    "model": "sonnet",
+    "tier": "developer-experience",
+    "file_path": "~/.claude/agents/developer-experience/git-workflow-manager.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "docker",
+      "java",
+      "javascript",
+      "oauth",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "legacy-modernizer": {
+    "name": "legacy-modernizer",
+    "description": "Strategic legacy system modernization specialist focusing on assessment, migration planning, strangler fig pattern, risk mitigation, and technology selection",
+    "model": "opus",
+    "tier": "developer-experience",
+    "file_path": "~/.claude/agents/developer-experience/legacy-modernizer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "microservices",
+      "mobile",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "aws",
+      "docker",
+      "express",
+      "gcp",
+      "http",
+      "java",
+      "javascript",
+      "kubernetes",
+      "mongodb",
+      "postgresql",
+      "pytest",
+      "python",
+      "react",
+      "redis",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "refactoring-specialist": {
+    "name": "refactoring-specialist",
+    "description": "Code refactoring expert specializing in code smell detection, refactoring patterns, safe transformations, incremental improvement, and technical debt reduction",
+    "model": "sonnet",
+    "tier": "developer-experience",
+    "file_path": "~/.claude/agents/developer-experience/refactoring-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "architecture-design",
+      "backend-development",
+      "performance",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "express",
+      "java",
+      "javascript",
+      "python",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  }
+}

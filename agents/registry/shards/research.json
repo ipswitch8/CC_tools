@@ -1,0 +1,114 @@
+{
+  "competitive-analyst": {
+    "name": "competitive-analyst",
+    "description": "Competitive intelligence specialist focusing on competitor analysis, market positioning, and strategic recommendations. Masters SWOT analysis, feature comparison, pricing analysis, and competitive landscape mapping to inform business strategy.",
+    "model": "sonnet",
+    "tier": "research",
+    "file_path": "~/.claude/agents/research/competitive-analyst.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "backend-development",
+      "deployment",
+      "performance",
+      "specialized-implementation",
+      "testing"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  },
+  "market-researcher": {
+    "name": "market-researcher",
+    "description": "Market analysis specialist focusing on market sizing, segmentation, consumer insights, and demand forecasting. Masters survey design, consumer behavior analysis, trend identification, and translating market data into business recommendations.",
+    "model": "sonnet",
+    "tier": "research",
+    "file_path": "~/.claude/agents/research/market-researcher.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "performance",
+      "specialized-implementation",
+      "testing"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  },
+  "research-analyst": {
+    "name": "research-analyst",
+    "description": "Comprehensive research specialist with expertise in research design, literature review, data collection, and analysis. Masters qualitative and quantitative methodologies, synthesis of complex information, and production of rigorous, evidence-based research reports.",
+    "model": "opus",
+    "tier": "research",
+    "file_path": "~/.claude/agents/research/research-analyst.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "rspec"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "trend-analyst": {
+    "name": "trend-analyst",
+    "description": "Strategic foresight specialist focusing on emerging trends, weak signal detection, scenario planning, and technology forecasting. Masters trend identification, impact assessment, strategic implications, and translating future possibilities into actionable business strategies.",
+    "model": "opus",
+    "tier": "research",
+    "file_path": "~/.claude/agents/research/trend-analyst.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "capabilities": [
+      "api-development",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "mobile",
+      "specialized-implementation",
+      "ui-development"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  }
+}

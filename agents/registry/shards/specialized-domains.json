@@ -1,0 +1,280 @@
+{
+  "blockchain-developer": {
+    "name": "blockchain-developer",
+    "description": "Blockchain and Web3 development expert specializing in smart contracts, DApps, cryptocurrency, consensus mechanisms, tokenomics, and blockchain security",
+    "model": "sonnet",
+    "tier": "specialized-domains",
+    "file_path": "~/.claude/agents/specialized-domains/blockchain-developer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "deployment",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "aws",
+      "react",
+      "rust",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "fintech-engineer": {
+    "name": "fintech-engineer",
+    "description": "Financial technology expert specializing in payment processing, transaction security, PCI-DSS compliance, fraud detection, regulatory compliance, and ledger systems",
+    "model": "sonnet",
+    "tier": "specialized-domains",
+    "file_path": "~/.claude/agents/specialized-domains/fintech-engineer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "mobile",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "python",
+      "rest"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "game-developer": {
+    "name": "game-developer",
+    "description": "Game development expert specializing in game engines (Unity, Unreal), game mechanics, physics simulation, performance optimization, multiplayer systems, and asset management",
+    "model": "sonnet",
+    "tier": "specialized-domains",
+    "file_path": "~/.claude/agents/specialized-domains/game-developer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "deployment",
+      "performance",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  },
+  "iot-engineer": {
+    "name": "iot-engineer",
+    "description": "IoT systems expert specializing in embedded devices, device firmware, MQTT/CoAP protocols, edge computing, sensor integration, device management, and IoT security",
+    "model": "sonnet",
+    "tier": "specialized-domains",
+    "file_path": "~/.claude/agents/specialized-domains/iot-engineer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "database-design",
+      "mobile",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "aws",
+      "azure",
+      "http",
+      "python",
+      "rest",
+      "typescript",
+      "websocket"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "mobile-app-developer": {
+    "name": "mobile-app-developer",
+    "description": "Mobile application development expert specializing in native iOS/Android development, cross-platform frameworks (React Native, Flutter), mobile UI/UX, push notifications, offline-first architecture, and app store optimization",
+    "model": "sonnet",
+    "tier": "specialized-domains",
+    "file_path": "~/.claude/agents/specialized-domains/mobile-app-developer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "deployment",
+      "mobile",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "http",
+      "jest",
+      "react",
+      "sqlite",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "payment-integration": {
+    "name": "payment-integration",
+    "description": "Payment gateway integration specialist focusing on Stripe, PayPal, 3D Secure, subscription billing, refunds, webhooks, and PCI compliance for frontend and backend payment flows",
+    "model": "sonnet",
+    "tier": "specialized-domains",
+    "file_path": "~/.claude/agents/specialized-domains/payment-integration.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "mobile",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "express",
+      "react",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "quant-analyst": {
+    "name": "quant-analyst",
+    "description": "Quantitative analysis expert specializing in statistical modeling, algorithmic trading, backtesting, risk modeling, portfolio optimization, market microstructure, and machine learning for trading strategies",
+    "model": "opus",
+    "tier": "specialized-domains",
+    "file_path": "~/.claude/agents/specialized-domains/quant-analyst.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "backend-development",
+      "cloud",
+      "code-implementation",
+      "mobile",
+      "performance",
+      "specialized-implementation",
+      "testing"
+    ],
+    "technologies": [
+      "python"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "seo-specialist": {
+    "name": "seo-specialist",
+    "description": "Search engine optimization expert specializing in keyword research, on-page SEO, technical SEO, schema markup, Core Web Vitals, link building, and content optimization for better search rankings",
+    "model": "sonnet",
+    "tier": "specialized-domains",
+    "file_path": "~/.claude/agents/specialized-domains/seo-specialist.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "mobile",
+      "performance",
+      "specialized-implementation",
+      "ui-development"
+    ],
+    "technologies": [
+      "http",
+      "python",
+      "typescript"
+    ],
+    "test_types": [],
+    "limitations": []
+  }
+}

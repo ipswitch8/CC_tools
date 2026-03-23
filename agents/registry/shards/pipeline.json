@@ -1,0 +1,115 @@
+{
+  "planner": {
+    "name": "planner",
+    "description": "Pipeline architect that generates phased execution plans for any multi-step task. Writes pipeline.json and initializes phase-state.json. Always invoke before any phase work begins.",
+    "model": "sonnet",
+    "tier": "pipeline",
+    "file_path": "~/.claude/agents/pipeline/planner.md",
+    "tools": ["Read", "Grep", "Glob", "Write"],
+    "capabilities": [
+      "pipeline-planning",
+      "phase-sequencing",
+      "task-decomposition",
+      "gate-agent-selection"
+    ],
+    "technologies": [],
+    "invoke_when": [
+      "task has multiple dependent stages",
+      "phased execution required",
+      "complex multi-step implementation",
+      "first X then Y then Z structure"
+    ],
+    "always_before": ["any phase execution"],
+    "produces": [".claude/pipeline.json", ".claude/phase-state.json"],
+    "test_types": [],
+    "limitations": ["planning only — does not implement"]
+  },
+  "validator": {
+    "name": "validator",
+    "description": "Phase gate agent that verifies a completed phase meets its acceptance criteria before the next phase begins. Always the first gate agent in every phase.",
+    "model": "sonnet",
+    "tier": "pipeline",
+    "file_path": "~/.claude/agents/pipeline/validator.md",
+    "tools": ["Read", "Grep", "Glob", "Bash"],
+    "capabilities": [
+      "acceptance-criteria-verification",
+      "phase-output-validation",
+      "structural-code-checks"
+    ],
+    "technologies": [],
+    "gate_role": true,
+    "invoke_when": [
+      "between phases as gate agent",
+      "phase work claims to be complete"
+    ],
+    "test_types": [],
+    "limitations": ["verification only — does not implement"]
+  },
+  "test-runner": {
+    "name": "test-runner",
+    "description": "Phase gate agent that runs the project test suite after phases producing testable code. Reports pass/fail with coverage summary.",
+    "model": "sonnet",
+    "tier": "pipeline",
+    "file_path": "~/.claude/agents/pipeline/test-runner.md",
+    "tools": ["Read", "Bash"],
+    "capabilities": [
+      "test-suite-execution",
+      "coverage-reporting",
+      "test-failure-diagnosis"
+    ],
+    "technologies": ["jest", "pytest", "go-test", "cargo-test"],
+    "gate_role": true,
+    "invoke_when": [
+      "phase produces testable code",
+      "between phases as gate agent"
+    ],
+    "test_types": ["unit", "integration"],
+    "limitations": ["runs tests only — does not write them"]
+  },
+  "security-audit": {
+    "name": "security-audit",
+    "description": "Phase gate agent that scans for secrets, vulnerabilities, and misconfigurations after phases touching auth, credentials, config, or external integrations.",
+    "model": "sonnet",
+    "tier": "pipeline",
+    "file_path": "~/.claude/agents/pipeline/security-audit.md",
+    "tools": ["Read", "Grep", "Glob", "Bash"],
+    "capabilities": [
+      "secrets-scanning",
+      "dependency-vulnerability-audit",
+      "env-file-exposure-check",
+      "hardcoded-credential-detection"
+    ],
+    "technologies": ["npm-audit", "pip-audit"],
+    "gate_role": true,
+    "invoke_when": [
+      "phase touches authentication or secrets",
+      "phase modifies infrastructure config",
+      "phase adds external integrations",
+      "between phases as gate agent"
+    ],
+    "test_types": ["security"],
+    "limitations": []
+  },
+  "perf-benchmarks": {
+    "name": "perf-benchmarks",
+    "description": "Phase gate agent that runs performance benchmarks after phases affecting hot paths or data processing. Detects regressions against baseline.",
+    "model": "sonnet",
+    "tier": "pipeline",
+    "file_path": "~/.claude/agents/pipeline/perf-benchmarks.md",
+    "tools": ["Read", "Bash"],
+    "capabilities": [
+      "benchmark-execution",
+      "performance-regression-detection",
+      "baseline-comparison"
+    ],
+    "technologies": ["jest-bench", "pytest-benchmark", "go-bench"],
+    "gate_role": true,
+    "invoke_when": [
+      "phase affects hot paths or data processing",
+      "phase modifies performance-critical code",
+      "between phases as gate agent"
+    ],
+    "test_types": ["performance"],
+    "limitations": []
+  }
+}

@@ -1,0 +1,241 @@
+{
+  "business-analyst": {
+    "name": "business-analyst",
+    "description": "Expert business analyst specializing in requirements gathering, process improvement, and data-driven decision making. Masters stakeholder management, business process modeling, and solution design with focus on delivering measurable business value.",
+    "model": "sonnet",
+    "tier": "business",
+    "file_path": "~/.claude/agents/business/business-analyst.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch",
+      "Task"
+    ],
+    "capabilities": [
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "database-design",
+      "performance",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  },
+  "content-marketer": {
+    "name": "content-marketer",
+    "description": "Expert Content Marketer specializing in content strategy, SEO optimization, and engagement marketing. Masters content planning, social media, email marketing, and lead generation with focus on driving awareness, engagement, and pipeline growth through compelling content.",
+    "model": "sonnet",
+    "tier": "business",
+    "file_path": "~/.claude/agents/business/content-marketer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch",
+      "Task"
+    ],
+    "capabilities": [
+      "backend-development",
+      "code-implementation",
+      "deployment",
+      "performance",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  },
+  "customer-success-manager": {
+    "name": "customer-success-manager",
+    "description": "Expert Customer Success Manager specializing in customer retention, growth, and advocacy. Masters onboarding, account health monitoring, upsell/cross-sell, and churn prevention with focus on ensuring customers achieve their desired outcomes and maximize product value.",
+    "model": "sonnet",
+    "tier": "business",
+    "file_path": "~/.claude/agents/business/customer-success-manager.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch",
+      "Task"
+    ],
+    "capabilities": [
+      "backend-development",
+      "code-implementation",
+      "deployment",
+      "performance",
+      "ui-development"
+    ],
+    "technologies": [
+      "rust"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "product-manager": {
+    "name": "product-manager",
+    "description": "Expert product manager specializing in product strategy, user-centric development, and business outcomes. Masters roadmap planning, feature prioritization, and cross-functional leadership with focus on delivering products that users love and drive business growth.",
+    "model": "opus",
+    "tier": "business",
+    "file_path": "~/.claude/agents/business/product-manager.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch",
+      "Task"
+    ],
+    "capabilities": [
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "deployment",
+      "performance",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  },
+  "sales-engineer": {
+    "name": "sales-engineer",
+    "description": "Expert Sales Engineer specializing in technical pre-sales, solution architecture, and proof-of-concept execution. Masters technical demonstrations, solution design, POC management, and RFP responses with focus on bridging customer needs with product capabilities.",
+    "model": "sonnet",
+    "tier": "business",
+    "file_path": "~/.claude/agents/business/sales-engineer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch",
+      "Task"
+    ],
+    "capabilities": [
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "performance",
+      "security",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "rust"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "scrum-master": {
+    "name": "scrum-master",
+    "description": "Expert Scrum Master specializing in agile transformation, team facilitation, and continuous improvement. Masters sprint planning, daily standups, retrospectives, and impediment removal with focus on team productivity, agile maturity, and sustainable delivery.",
+    "model": "sonnet",
+    "tier": "business",
+    "file_path": "~/.claude/agents/business/scrum-master.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch",
+      "Task"
+    ],
+    "capabilities": [
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "performance",
+      "ui-development"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  },
+  "technical-writer": {
+    "name": "technical-writer",
+    "description": "Expert technical writer specializing in API documentation, user guides, tutorials, and technical content creation. Masters documentation planning, content standards, and visual communication with focus on clarity, accuracy, and user empowerment.",
+    "model": "sonnet",
+    "tier": "business",
+    "file_path": "~/.claude/agents/business/technical-writer.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch",
+      "Task"
+    ],
+    "capabilities": [
+      "api-development",
+      "architecture-design",
+      "backend-development",
+      "code-implementation",
+      "deployment",
+      "mobile",
+      "performance",
+      "security",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [
+      "graphql",
+      "rest"
+    ],
+    "test_types": [],
+    "limitations": []
+  },
+  "ux-researcher": {
+    "name": "ux-researcher",
+    "description": "Expert UX researcher specializing in user insights, usability testing, and data-driven design decisions. Masters user interviews, survey design, analytics interpretation, and persona development with focus on understanding user needs and improving experiences.",
+    "model": "sonnet",
+    "tier": "business",
+    "file_path": "~/.claude/agents/business/ux-researcher.md",
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch",
+      "Task"
+    ],
+    "capabilities": [
+      "backend-development",
+      "code-implementation",
+      "performance",
+      "specialized-implementation",
+      "testing",
+      "ui-development"
+    ],
+    "technologies": [],
+    "test_types": [],
+    "limitations": []
+  }
+}
