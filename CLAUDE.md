@@ -28,23 +28,23 @@ described as "first X, then Y, then Z" where each step gates the next,
 use phases. Single-step tasks do not need phases.
 
 ### Mandatory sequence
-
 1. **Load the pipeline shard** from the registry
 2. **Invoke the `planner` agent** with the full task description
    Wait for confirmation that `pipeline.json` has been written
 3. **Read `pipeline.json`** to understand all phases before starting work
 4. **Execute phases in index order** using agents from relevant registry shards
-5. **After each phase**, invoke gate agents one at a time in the order listed
-   in that phase's `pipeline.json` entry
+5. **After each phase**, invoke gate agents one at a time in the order listed in that phase's `pipeline.json` entry
 6. **Never advance** to the next phase until all gate agents have passed
-7. **On gate failure**: re-invoke the implementing agent to fix the issue,
-   re-run the failed gate — do not skip or override
+7. **On gate failure**: re-invoke the implementing agent to fix the issue, re-run the failed gate — do not skip or override
+8. **After all gates pass**, run `/g` to commit the phase's verified work
+9. **Phase advances** automatically after `/g` completes
 
 ### Gate agents (all in pipeline shard)
 
 | Agent | Purpose | Include when |
 |---|---|---|
-| `validator` | Verifies acceptance criteria | Always — listed first |
+| `karen` | Reality-checks actual vs claimed completion — may prompt user | Always — listed first |
+| `validator` | Verifies acceptance criteria | Always — listed second |
 | `test-runner` | Runs test suite | Phase produces testable code |
 | `security-audit` | Scans for secrets/vulns | Phase touches auth, secrets, infra |
 | `perf-benchmarks` | Runs benchmarks | Phase affects performance-critical paths |
