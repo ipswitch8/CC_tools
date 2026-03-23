@@ -9,6 +9,12 @@
 
 set -euo pipefail
 
+# ── Require jq ────────────────────────────────────────────────────────────────
+if ! command -v jq &>/dev/null; then
+  echo "Gate enforcement requires jq — install it and ensure it is on PATH." >&2
+  exit 2
+fi
+
 PAYLOAD=$(cat)
 TOOL_NAME=$(echo "$PAYLOAD" | jq -r '.tool_name // ""')
 
@@ -56,21 +62,140 @@ if [ -f "$STATE_FILE" ] && [ -f "$PIPELINE_FILE" ]; then
     fi
   fi
 fi
-```
 
-Exit code 2 sends the message directly to Claude as a tool error — it cannot proceed and sees exactly why.
+# Exit code 2 sends the message directly to Claude as a tool error —
+# it cannot proceed and sees exactly why.
+#
+# Why ANY_RAN gate:
+# The block only activates once at least one gate has run. This prevents
+# it from blocking the phase work itself (when current_gate_results is
+# empty, Claude should be free to write). The sequence becomes:
+#
+#   current_gate_results = {}       → writing allowed  (phase work in progress)
+#   karen = true, validator = ?     → writing BLOCKED  (gates started, not finished)
+#   karen = true, validator = true  → writing allowed  (all gates passed, /g pending)
+#   awaiting_commit = true          → writing BLOCKED  (waiting for /g)
+#   phase advances, gates reset     → writing allowed  (next phase begins)
 
----
+# ── Filesystem boundary enforcement ──────────────────────────────────────────
+# Resolve the current project root (where claude was launched from)
+PROJECT_ROOT=$(pwd)
+PROJECT_PARENT=$(dirname "$PROJECT_ROOT")
 
-## Why `ANY_RAN` gate
+# Paths allowed outside the project root
+is_allowed_external_path() {
+  local path="$1"
+  # Normalize: strip trailing slash
+  path="${path%/}"
 
-The block only activates once at least one gate has run. This prevents it from blocking the phase work itself (when `current_gate_results` is empty, Claude should be free to write). The sequence becomes:
-```
-current_gate_results = {}     → writing allowed  (phase work in progress)
-karen = true, validator = ?   → writing BLOCKED  (gates started, not finished)
-karen = true, validator = true → writing allowed  (all gates passed, /g pending)
-awaiting_commit = true        → writing BLOCKED  (waiting for /g)
-phase advances, gates reset   → writing allowed  (next phase begins)
+  # Allow anything inside the project
+  [[ "$path" == "$PROJECT_ROOT"* ]] && return 0
+
+  # Allow ~/.claude and subdirectories
+  local claude_dir
+  claude_dir=$(eval echo "~/.claude")
+  [[ "$path" == "$claude_dir"* ]] && return 0
+
+  # Allow system binary and library paths (Linux/Mac)
+  [[ "$path" == /usr/bin* ]]       && return 0
+  [[ "$path" == /usr/local/bin* ]] && return 0
+  [[ "$path" == /usr/lib* ]]       && return 0
+  [[ "$path" == /bin* ]]           && return 0
+  [[ "$path" == /opt* ]]           && return 0
+
+  # Allow Windows system paths (Git Bash)
+  [[ "$path" == /c/Windows* ]]     && return 0
+  [[ "$path" == /c/Program\ Files* ]] && return 0
+  [[ "$path" == /c/Program\ Files\ \(x86\)* ]] && return 0
+  [[ "$path" == /c/ProgramData* ]] && return 0
+  [[ "$path" == /c/Users/*/AppData* ]] && return 0
+
+  # Allow nvm, pyenv, rbenv, etc.
+  local home_dir="$HOME"
+  [[ "$path" == "$home_dir/.nvm"* ]]   && return 0
+  [[ "$path" == "$home_dir/.pyenv"* ]] && return 0
+  [[ "$path" == "$home_dir/.rbenv"* ]] && return 0
+  [[ "$path" == "$home_dir/.cargo"* ]] && return 0
+  [[ "$path" == "$home_dir/.go"* ]]    && return 0
+
+  # Allow other misc paths
+  [[ "$path" == /tmp ]]       && return 0
+  [[ "$path" == /temp ]]      && return 0
+  [[ "$path" == /var/log ]]   && return 0
+
+  # Project-specific extra allowances
+  local extra_paths_file="$PROJECT_ROOT/.claude/allowed-paths.json"
+  if [ -f "$extra_paths_file" ]; then
+    while IFS= read -r allowed; do
+      [[ "$path" == "$allowed"* ]] && return 0
+    done < <(jq -r '.extra_allowed_paths[]' "$extra_paths_file" 2>/dev/null)
+  fi
+
+  return 1
+}
+
+is_sibling_or_parent_path() {
+  local path="$1"
+  path="${path%/}"
+
+  # Block exact parent directory or anything above it
+  [[ "$path" == "$PROJECT_PARENT" ]]   && return 0
+  [[ "$path" == "$PROJECT_PARENT"/ ]]  && return 0
+
+  # Block sibling projects: same parent, different child
+  if [[ "$path" == "$PROJECT_PARENT/"* ]]; then
+    # It's under the parent — is it our project or something else?
+    [[ "$path" == "$PROJECT_ROOT"* ]] || return 0
+  fi
+
+  return 1
+}
+
+check_path_boundary() {
+  local path="$1"
+
+  # Relative paths always fine — resolve inside project
+  [[ "$path" != /* ]] && return 0
+
+  # Normalize
+  path="${path%/}"
+
+  # ── WHITELIST: explicitly allowed external paths ──────────────────────────
+  is_allowed_external_path "$path" && return 0
+
+  # ── PROJECT: anything inside the current project ──────────────────────────
+  [[ "$path" == "$PROJECT_ROOT"* ]] && return 0
+
+  # ── EVERYTHING ELSE: block ────────────────────────────────────────────────
+  echo "Filesystem boundary: access to '${path}' is not permitted. Allowed: project directory (${PROJECT_ROOT}), ~/.claude/, system bin/lib paths. To explore system directories like /var/log or /tmp, request explicit user approval first." >&2
+  exit 2
+}
+
+# Check Read, Glob, Grep tool paths
+if [[ "$TOOL_NAME" == "Read" || "$TOOL_NAME" == "Glob" ]]; then
+  FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.path // ""')
+  check_path_boundary "$FILE_PATH"
+fi
+
+if [[ "$TOOL_NAME" == "Grep" ]]; then
+  GREP_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.path // ""')
+  check_path_boundary "$GREP_PATH"
+fi
+
+# Check Bash commands for dangerous path arguments
+if [[ "$TOOL_NAME" == "Bash" ]]; then
+  COMMAND=$(echo "$PAYLOAD" | jq -r '.tool_input.command // ""')
+
+  # Extract the first absolute path argument from common traversal commands
+  # Matches: find /path, grep -r /path, ls /path, cat /path, cd /path
+  TRAVERSAL_PATH=$(echo "$COMMAND" | \
+    grep -oE '(find|grep|grep -r|grep -rn|ls|cat|head|tail|cd|rg|ag)\s+[^-][^\s]*' | \
+    grep -oE '/[^\s"'"'"']+' | head -1 || true)
+
+  if [ -n "$TRAVERSAL_PATH" ]; then
+    check_path_boundary "$TRAVERSAL_PATH"
+  fi
+fi
 
 # ── Internet-native tools ─────────────────────────────────────────────────────
 INTERNET_TOOLS=(
