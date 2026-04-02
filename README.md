@@ -9,8 +9,8 @@ How to use - put/merge these folders in your ~/.claude/ folder and merge the CLA
 Q: What is the "agents" folder\
 A: Agents for Claude\
 \
-Q: What is the "commands" folder?\
-A: Commands for Claude, described above.\
+Q: What is the "skills" folder?\
+A: Skills for Claude, described above.\
 \
 Q: What is the "hooks" folder?\
 A: Scripts to support the pipeline process.\
