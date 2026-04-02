@@ -1,4 +1,4 @@
-A couple of commands to:\
+A couple of <s>commands</s> <i>skills</i> to:\
 /a = use agents in a project (will also auto-plan and pipeline phased work with agent Karen validation and git commits enforced between phases)\
 /p = similar to /a but forces planning and pipeline process instead of deciding on the fly\
 /k = a specific agent (Karen) used to verify Claude's most recent work in a project (i.e. after /a)\
