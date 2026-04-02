@@ -1,1 +1,0 @@
-Review ALL uncommitted changes with git status, organize related changes into logical commits, and push to Git repo. Alert user if unrelated uncommitted changes exist from previous work.
