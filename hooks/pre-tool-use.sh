@@ -171,30 +171,39 @@ check_path_boundary() {
   exit 2
 }
 
-# Check Read, Glob, Grep tool paths
-if [[ "$TOOL_NAME" == "Read" || "$TOOL_NAME" == "Glob" ]]; then
+# Check Read tool paths (uses file_path, not path)                                                                                                                                          
+if [[ "$TOOL_NAME" == "Read" ]]; then                                                                                                                                                       
+  FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.file_path // .tool_input.path // ""')                                                                                                    
+  check_path_boundary "$FILE_PATH"                                                                                                                                                          
+fi                                                                                                                                                                                          
+																																														  
+# Check Glob, Grep tool paths
+if [[ "$TOOL_NAME" == "Glob" || "$TOOL_NAME" == "Grep" ]]; then
   FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.path // ""')
   check_path_boundary "$FILE_PATH"
 fi
 
-if [[ "$TOOL_NAME" == "Grep" ]]; then
-  GREP_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.path // ""')
-  check_path_boundary "$GREP_PATH"
+# Check Write and Edit tools (use file_path)
+if [[ "$TOOL_NAME" == "Write" || "$TOOL_NAME" == "Edit" || "$TOOL_NAME" == "MultiEdit" ]]; then
+  FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.file_path // ""')
+  check_path_boundary "$FILE_PATH"
 fi
 
-# Check Bash commands for dangerous path arguments
+# Check Bash commands for ALL absolute paths, not just read commands
 if [[ "$TOOL_NAME" == "Bash" ]]; then
   COMMAND=$(echo "$PAYLOAD" | jq -r '.tool_input.command // ""')
 
-  # Extract the first absolute path argument from common traversal commands
-  # Matches: find /path, grep -r /path, ls /path, cat /path, cd /path
-  TRAVERSAL_PATH=$(echo "$COMMAND" | \
-    grep -oE '(find|grep|grep -r|grep -rn|ls|cat|head|tail|cd|rg|ag)\s+[^-][^\s]*' | \
-    grep -oE '/[^\s"'"'"']+' | head -1 || true)
+  # Extract ALL absolute paths from the command string.
+  # Catches read ops (cat, ls, find) AND write ops (cp, mv, tee, mkdir,
+  # redirect targets, sed -i, rsync, install, tar -C, etc.)
+  ALL_PATHS=$(echo "$COMMAND" | \
+    grep -oE '/?(/[a-zA-Z0-9_.@-]+)+' | \
+    sort -u || true)
 
-  if [ -n "$TRAVERSAL_PATH" ]; then
-    check_path_boundary "$TRAVERSAL_PATH"
-  fi
+  while IFS= read -r ABS_PATH; do
+    [ -z "$ABS_PATH" ] && continue
+    check_path_boundary "$ABS_PATH"
+  done <<< "$ALL_PATHS"
 fi
 
 # ── Internet-native tools ─────────────────────────────────────────────────────
