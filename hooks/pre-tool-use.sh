@@ -212,11 +212,12 @@ fi
 if [[ "$TOOL_NAME" == "Bash" ]]; then
   COMMAND=$(echo "$PAYLOAD" | jq -r '.tool_input.command // ""')
 
-  # Extract ALL absolute paths from the command string.
-  # Catches read ops (cat, ls, find) AND write ops (cp, mv, tee, mkdir,
-  # redirect targets, sed -i, rsync, install, tar -C, etc.)
-  ALL_PATHS=$(echo "$COMMAND" | \
-    grep -oE '/?(/[a-zA-Z0-9_.@-]+)+' | \
+  # Extract absolute paths only (must start with / preceded by whitespace,
+  # start of string, or shell operator). Avoids false positives from                                                
+  # relative paths like .claude/hooks/stage-files.sh where /hooks/...                                               
+  # would be incorrectly extracted as an absolute path.                                                             
+  ALL_PATHS=$(echo "$COMMAND" | \                                                                                   
+    grep -oP '(?:^|(?<=\s)|(?<=[;|&>]))(/[a-zA-Z0-9_.@/-]+)' | \                                                    
     sort -u || true)
 
   while IFS= read -r ABS_PATH; do
