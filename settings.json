@@ -59,6 +59,13 @@
         ]
       }
     ]
+  },
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "medium",
+  "skipDangerousModePermissionPrompt": true,
+  "statusLine": {
+    "type": "command",
+    "command": "jq -r '.workspace.project_dir'"
   }
 }
 
