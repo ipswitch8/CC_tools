@@ -118,10 +118,29 @@ is_allowed_external_path() {
   [[ "$path" == "$home_dir/.cargo"* ]] && return 0
   [[ "$path" == "$home_dir/.go"* ]]    && return 0
 
-  # Allow other misc paths
-  [[ "$path" == /tmp ]]       && return 0
-  [[ "$path" == /temp ]]      && return 0
-  [[ "$path" == /var/log ]]   && return 0
+  # Allow read/write to temp directories (prefix match)
+  [[ "$path" == /tmp* ]]       && return 0            
+  [[ "$path" == /tmp/* ]]      && return 0                                                                           
+  [[ "$path" == /var/tmp* ]]   && return 0
+  [[ "$path" == /dev/shm* ]]   && return 0                                                                           
+  [[ "$path" == /temp* ]]      && return 0
+                                                                                                                     
+  # Windows temp paths (Git Bash)
+  [[ "$path" == /c/Users/*/AppData/Local/Temp* ]] && return 0                                                        
+  [[ "$path" == /c/Windows/Temp* ]]               && return 0
+                                                                                                                     
+  # TMPDIR override (if set)                                                                                         
+  if [ -n "${TMPDIR:-}" ]; then                                                                                      
+    [[ "$path" == "${TMPDIR}"* ]] && return 0                                                                        
+  fi                                                                                                                 
+
+  # Allow read access to common log locations (prefix match)                                                         
+  [[ "$path" == /var/log* ]]                   && return 0                                                           
+  [[ "$path" == /var/log/* ]]                  && return 0
+  [[ "$path" == "$home_dir/.local/share/logs"* ]] && return 0                                                        
+                                                             
+  # Windows event logs (Git Bash)                                                                                    
+  [[ "$path" == /c/Windows/System32/winevt* ]] && return 0
 
   # Project-specific extra allowances
   local extra_paths_file="$PROJECT_ROOT/.claude/allowed-paths.json"
