@@ -23,4 +23,14 @@ A: Just one doc at the moment, mostly about changes in the agent registry that c
 \
 Q: What is the "CC_multi" folder?\
 A1: A small script to more easily manage dozens of simultaneous Claude Code CLI sessions scattered across multiple projects on multiple servers and fully utilize multiple screens, with various features for session management, reconnection, etc.\
-A2: Read the README.md file in that folder for more info.
+A2: Read the README.md file in that folder for more info.\
+\
+Q: What if I need an agent that isn't in this collection?\
+A: If you need a different agent:\
+ - ask Claude to write it and incorporate it into that structure (which is optimized to manage context and not load anything unnecessarily)\
+ - ask Perplexity for half a dozen of the best examples of that kind of agent\
+ - ask Claude to compare them all and select best-in-class features to improve on what it made initially\
+\
+Et voila' - you get the most current Anthropic-approved format from the first pass, plus the best ideas from other folks who might be experts in their own right but don't necessarily have an optimized MD file.   😁 \
+\
+All of AI's shortcomings can be overcome by... AI!   🤖 
