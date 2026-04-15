@@ -29,7 +29,7 @@ Q: What if I need an agent that isn't in this collection?\
 A: If you need a different agent:
  - ask Claude to write it and incorporate it into that structure (which is optimized to manage context and not load anything unnecessarily)
  - ask Perplexity for half a dozen of the best examples of that kind of agent
- - ask Claude to compare them all and select best-in-class features to improve on what it made initially
+ - ask Claude to compare them all and select best-in-class features to improve on what it made initially\
 \
 Et voila' - you get the most current Anthropic-approved format from the first pass, plus the best ideas from other folks who might be experts in their own right but don't necessarily have an optimized MD file.   😁 \
 \
