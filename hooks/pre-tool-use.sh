@@ -23,9 +23,34 @@ STATE_FILE=".claude/phase-state.json"
 PIPELINE_FILE=".claude/pipeline.json"
 
 if [ -f "$STATE_FILE" ] && [ -f "$PIPELINE_FILE" ]; then
-  # Only enforce on tools that constitute phase work
+
+  # ── HARD BLOCK: Write/Edit targeting OR containing phase-state references ────
+  if [[ "$TOOL_NAME" == "Write" || "$TOOL_NAME" == "Edit" || "$TOOL_NAME" == "MultiEdit" ]]; then
+    FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.file_path // ""')
+    if echo "$FILE_PATH" | grep -qF 'phase-state'; then
+      echo "Gate enforcement: Cannot modify phase-state.json via ${TOOL_NAME} — all state mutations are managed
+exclusively by the stop hook." >&2
+      exit 2
+    fi
+    CONTENT=""
+    if [ "$TOOL_NAME" = "Write" ]; then
+      CONTENT=$(echo "$PAYLOAD" | jq -r '.tool_input.content // ""')
+    elif [ "$TOOL_NAME" = "Edit" ]; then
+      CONTENT=$(echo "$PAYLOAD" | jq -r '.tool_input.new_string // ""')
+    elif [ "$TOOL_NAME" = "MultiEdit" ]; then
+      CONTENT=$(echo "$PAYLOAD" | jq -r '[.tool_input.edits[]?.new_string // ""] | join("\n")')
+    fi
+    if echo "$CONTENT" | grep -qF 'phase-state'; then
+      echo "Gate enforcement: File contents reference phase-state.json — this could be used to bypass gate
+enforcement via script execution. All state mutations are managed exclusively by the stop hook." >&2
+      exit 2
+    fi
+  fi
+
+  # Enforce on ALL tools that constitute phase work
   if [[ "$TOOL_NAME" == "Write" || "$TOOL_NAME" == "Edit" || \
-        "$TOOL_NAME" == "MultiEdit" || "$TOOL_NAME" == "NotebookEdit" ]]; then
+        "$TOOL_NAME" == "MultiEdit" || "$TOOL_NAME" == "NotebookEdit" || \
+        "$TOOL_NAME" == "Bash" ]]; then
 
     IDX=$(jq -r '.current_phase_index // 0' "$STATE_FILE")
     TOTAL=$(jq '.phases | length' "$PIPELINE_FILE")
@@ -37,80 +62,123 @@ if [ -f "$STATE_FILE" ] && [ -f "$PIPELINE_FILE" ]; then
       # Block if waiting for /g commit
       if [ "$AWAITING_COMMIT" = "true" ]; then
         PHASE_NAME=$(jq -r ".phases[$IDX].name" "$PIPELINE_FILE")
-        echo "Gate enforcement: All gates passed for ${PHASE_NAME} but /g has not run yet. Run /g to commit this phase before writing new code." >&2
+        echo "Gate enforcement: All gates passed for ${PHASE_NAME} but /g has not run yet. Run /g to commit this
+ phase before writing new code." >&2
         exit 2
       fi
 
-      # Find first pending gate
+      # Find first pending gate.
       NEXT_GATE=""
       while IFS= read -r agent; do
-        PASSED=$(echo "$GATE_RESULTS" | jq -r --arg a "$agent" '.[$a] // false')
-        if [ "$PASSED" != "true" ]; then
+        agent=$(printf "%s" "$agent" | tr -d "\r")
+        PASSED=$(echo "$GATE_RESULTS" | jq -r --arg a "$agent" '(.[$a] // false) | if type == "object" then
+(.result // "FAIL") else tostring end')
+        if [ "$PASSED" != "true" ] && [ "$PASSED" != "PASS" ]; then
           NEXT_GATE="$agent"
           break
         fi
       done < <(jq -r ".phases[$IDX].gate_agents[]" "$PIPELINE_FILE" 2>/dev/null)
 
-      # Block if any gate is pending AND at least one gate has run
-      # (i.e. phase work is done but gates are incomplete)
+      # Three-state gate enforcement:
+      #   true          = PASS → block tools (no post-gate changes)
+      #   "remediation" = FAIL → allow tools (agent fixing issues)
+      #   absent        = not yet run → allow tools (normal work)
+      #
+      # Once the first gate is invoked (ANY_RAN), tools are blocked
+      # UNLESS we are in remediation mode (at least one gate failed).
       ANY_RAN=$(echo "$GATE_RESULTS" | jq '[to_entries[]] | length > 0')
       if [ -n "$NEXT_GATE" ] && [ "$ANY_RAN" = "true" ]; then
-        PHASE_NAME=$(jq -r ".phases[$IDX].name" "$PIPELINE_FILE")
-        echo "Gate enforcement: Cannot write new code — pending gate agent '${NEXT_GATE}' has not run for ${PHASE_NAME}. Invoke ${NEXT_GATE} before continuing." >&2
-        exit 2
+        HAS_REMEDIATION=$(echo "$GATE_RESULTS" | jq 'to_entries | any(.value == "remediation")')
+        if [ "$HAS_REMEDIATION" = "true" ]; then
+          : # Remediation mode — tools allowed for fixes
+        else
+          PHASE_NAME=$(jq -r ".phases[$IDX].name" "$PIPELINE_FILE")
+          echo "Gate enforcement: Cannot continue — pending gate agent '${NEXT_GATE}' has not passed for
+${PHASE_NAME}. Invoke ${NEXT_GATE} before continuing." >&2
+          exit 2
+        fi
+      fi
+
+      # Block git commit if gates haven't all passed.
+      if [ "$TOOL_NAME" = "Bash" ]; then
+        COMMAND=$(echo "$PAYLOAD" | jq -r '.tool_input.command // ""')
+
+        if echo "$COMMAND" | grep -qP '(?<![#"\x27])git\s+commit\b'; then
+          if [ -n "$NEXT_GATE" ]; then
+            PHASE_NAME=$(jq -r ".phases[$IDX].name" "$PIPELINE_FILE")
+            echo "Gate enforcement: Cannot commit — gate agent '${NEXT_GATE}' has not passed for ${PHASE_NAME}.
+Run all gate agents before committing." >&2
+            exit 2
+          fi
+        fi
+
+        # HARD BLOCK all Bash references to phase-state.json.
+        if echo "$COMMAND" | grep -qF 'phase-state'; then
+          echo "Gate enforcement: Cannot reference phase-state.json in Bash — use Read tool to inspect, Agent
+tool to invoke gates. All state mutations are managed exclusively by the stop hook." >&2
+          exit 2
+        fi
+
+        # Scan contents of ALL files referenced in the Bash command AND
+        # all inline code strings.
+        INLINE_CODE=$(echo "$COMMAND" | \
+          grep -oP '(?:-c|-e|-Command)\s+["\x27]([^"\x27]*)["\x27]' || true)
+        if echo "$INLINE_CODE" | grep -qF 'phase-state'; then
+          echo "Gate enforcement: Inline code references phase-state.json — blocked. All state mutations are
+managed exclusively by the stop hook." >&2
+          exit 2
+        fi
+
+        ALL_TOKENS=$(echo "$COMMAND" | tr ' \t;|&' '\n' | \
+          grep -E '\.(sh|py|bash|pl|rb|js|ps1|psm1|bat|cmd|php|lua|tcl)$|^\.?/' | \
+          sort -u || true)
+        EXEC_TARGETS=$(echo "$COMMAND" | \
+          grep -oP
+'(?:bash|sh|source|python|python3|perl|ruby|node|pwsh|powershell)\s+(?:-\S+\s+)*\K[^\s;|&"'\'']+' || true)
+        CAT_TARGETS=$(echo "$COMMAND" | \
+          grep -oP '(?:cat|type)\s+\K[^\s;|&]+' || true)
+
+        for token in $ALL_TOKENS $EXEC_TARGETS $CAT_TARGETS; do
+          [ -z "$token" ] && continue
+          if [ -f "$token" ]; then
+            if grep -qF 'phase-state' "$token" 2>/dev/null; then
+              echo "Gate enforcement: File '${token}' contains phase-state.json references — execution blocked.
+All state mutations are managed exclusively by the stop hook." >&2
+              exit 2
+            fi
+          fi
+        done
       fi
     fi
   fi
 fi
 
-# Exit code 2 sends the message directly to Claude as a tool error —
-# it cannot proceed and sees exactly why.
-#
-# Why ANY_RAN gate:
-# The block only activates once at least one gate has run. This prevents
-# it from blocking the phase work itself (when current_gate_results is
-# empty, Claude should be free to write). The sequence becomes:
-#
-#   current_gate_results = {}       → writing allowed  (phase work in progress)
-#   karen = true, validator = ?     → writing BLOCKED  (gates started, not finished)
-#   karen = true, validator = true  → writing allowed  (all gates passed, /g pending)
-#   awaiting_commit = true          → writing BLOCKED  (waiting for /g)
-#   phase advances, gates reset     → writing allowed  (next phase begins)
-
 # ── Filesystem boundary enforcement ──────────────────────────────────────────
-# Resolve the current project root (where claude was launched from)
 PROJECT_ROOT=$(pwd)
 PROJECT_PARENT=$(dirname "$PROJECT_ROOT")
 
-# Paths allowed outside the project root
 is_allowed_external_path() {
   local path="$1"
-  # Normalize: strip trailing slash
   path="${path%/}"
 
-  # Allow anything inside the project
   [[ "$path" == "$PROJECT_ROOT"* ]] && return 0
 
-  # Allow ~/.claude and subdirectories
   local claude_dir
   claude_dir=$(eval echo "~/.claude")
   [[ "$path" == "$claude_dir"* ]] && return 0
 
-  # Allow system binary and library paths (Linux/Mac)
   [[ "$path" == /usr/bin* ]]       && return 0
   [[ "$path" == /usr/local/bin* ]] && return 0
   [[ "$path" == /usr/lib* ]]       && return 0
   [[ "$path" == /bin* ]]           && return 0
   [[ "$path" == /opt* ]]           && return 0
 
-  # Allow Windows system paths (Git Bash)
   [[ "$path" == /c/Windows* ]]     && return 0
   [[ "$path" == /c/Program\ Files* ]] && return 0
   [[ "$path" == /c/Program\ Files\ \(x86\)* ]] && return 0
   [[ "$path" == /c/ProgramData* ]] && return 0
   [[ "$path" == /c/Users/*/AppData* ]] && return 0
 
-  # Allow nvm, pyenv, rbenv, etc.
   local home_dir="$HOME"
   [[ "$path" == "$home_dir/.nvm"* ]]   && return 0
   [[ "$path" == "$home_dir/.pyenv"* ]] && return 0
@@ -118,31 +186,25 @@ is_allowed_external_path() {
   [[ "$path" == "$home_dir/.cargo"* ]] && return 0
   [[ "$path" == "$home_dir/.go"* ]]    && return 0
 
-  # Allow read/write to temp directories (prefix match)
-  [[ "$path" == /tmp* ]]       && return 0            
-  [[ "$path" == /tmp/* ]]      && return 0                                                                           
+  [[ "$path" == /tmp* ]]       && return 0
+  [[ "$path" == /tmp/* ]]      && return 0
   [[ "$path" == /var/tmp* ]]   && return 0
-  [[ "$path" == /dev/shm* ]]   && return 0                                                                           
+  [[ "$path" == /dev/shm* ]]   && return 0
   [[ "$path" == /temp* ]]      && return 0
-                                                                                                                     
-  # Windows temp paths (Git Bash)
-  [[ "$path" == /c/Users/*/AppData/Local/Temp* ]] && return 0                                                        
-  [[ "$path" == /c/Windows/Temp* ]]               && return 0
-                                                                                                                     
-  # TMPDIR override (if set)                                                                                         
-  if [ -n "${TMPDIR:-}" ]; then                                                                                      
-    [[ "$path" == "${TMPDIR}"* ]] && return 0                                                                        
-  fi                                                                                                                 
 
-  # Allow read access to common log locations (prefix match)                                                         
-  [[ "$path" == /var/log* ]]                   && return 0                                                           
+  [[ "$path" == /c/Users/*/AppData/Local/Temp* ]] && return 0
+  [[ "$path" == /c/Windows/Temp* ]]               && return 0
+
+  if [ -n "${TMPDIR:-}" ]; then
+    [[ "$path" == "${TMPDIR}"* ]] && return 0
+  fi
+
+  [[ "$path" == /var/log* ]]                   && return 0
   [[ "$path" == /var/log/* ]]                  && return 0
-  [[ "$path" == "$home_dir/.local/share/logs"* ]] && return 0                                                        
-                                                             
-  # Windows event logs (Git Bash)                                                                                    
+  [[ "$path" == "$home_dir/.local/share/logs"* ]] && return 0
+
   [[ "$path" == /c/Windows/System32/winevt* ]] && return 0
 
-  # Project-specific extra allowances
   local extra_paths_file="$PROJECT_ROOT/.claude/allowed-paths.json"
   if [ -f "$extra_paths_file" ]; then
     while IFS= read -r allowed; do
@@ -157,13 +219,10 @@ is_sibling_or_parent_path() {
   local path="$1"
   path="${path%/}"
 
-  # Block exact parent directory or anything above it
   [[ "$path" == "$PROJECT_PARENT" ]]   && return 0
   [[ "$path" == "$PROJECT_PARENT"/ ]]  && return 0
 
-  # Block sibling projects: same parent, different child
   if [[ "$path" == "$PROJECT_PARENT/"* ]]; then
-    # It's under the parent — is it our project or something else?
     [[ "$path" == "$PROJECT_ROOT"* ]] || return 0
   fi
 
@@ -173,51 +232,40 @@ is_sibling_or_parent_path() {
 check_path_boundary() {
   local path="$1"
 
-  # Relative paths always fine — resolve inside project
   [[ "$path" != /* ]] && return 0
 
-  # Normalize
   path="${path%/}"
 
-  # ── WHITELIST: explicitly allowed external paths ──────────────────────────
   is_allowed_external_path "$path" && return 0
 
-  # ── PROJECT: anything inside the current project ──────────────────────────
   [[ "$path" == "$PROJECT_ROOT"* ]] && return 0
 
-  # ── EVERYTHING ELSE: block ────────────────────────────────────────────────
-  echo "Filesystem boundary: access to '${path}' is not permitted. Allowed: project directory (${PROJECT_ROOT}), ~/.claude/, system bin/lib paths. To explore system directories like /var/log or /tmp, request explicit user approval first." >&2
+  echo "Filesystem boundary: access to '${path}' is not permitted. Allowed: project directory (${PROJECT_ROOT}),
+ ~/.claude/, system bin/lib paths. To explore system directories like /var/log or /tmp, request explicit user
+approval first." >&2
   exit 2
 }
 
-# Check Read tool paths (uses file_path, not path)                                                                                                                                          
-if [[ "$TOOL_NAME" == "Read" ]]; then                                                                                                                                                       
-  FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.file_path // .tool_input.path // ""')                                                                                                    
-  check_path_boundary "$FILE_PATH"                                                                                                                                                          
-fi                                                                                                                                                                                          
-																																														  
-# Check Glob, Grep tool paths
+if [[ "$TOOL_NAME" == "Read" ]]; then
+  FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.file_path // .tool_input.path // ""')
+  check_path_boundary "$FILE_PATH"
+fi
+
 if [[ "$TOOL_NAME" == "Glob" || "$TOOL_NAME" == "Grep" ]]; then
   FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.path // ""')
   check_path_boundary "$FILE_PATH"
 fi
 
-# Check Write and Edit tools (use file_path)
 if [[ "$TOOL_NAME" == "Write" || "$TOOL_NAME" == "Edit" || "$TOOL_NAME" == "MultiEdit" ]]; then
   FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.file_path // ""')
   check_path_boundary "$FILE_PATH"
 fi
 
-# Check Bash commands for ALL absolute paths, not just read commands
 if [[ "$TOOL_NAME" == "Bash" ]]; then
   COMMAND=$(echo "$PAYLOAD" | jq -r '.tool_input.command // ""')
 
-  # Extract absolute paths only (must start with / preceded by whitespace,
-  # start of string, or shell operator). Avoids false positives from                                                
-  # relative paths like .claude/hooks/stage-files.sh where /hooks/...                                               
-  # would be incorrectly extracted as an absolute path.                                                             
-  ALL_PATHS=$(echo "$COMMAND" | \                                                                                   
-    grep -oP '(?:^|(?<=\s)|(?<=[;|&>]))(/[a-zA-Z0-9_.@/-]+)' | \                                                    
+  ALL_PATHS=$(echo "$COMMAND" | \
+    grep -oP '(?:^|(?<=\s)|(?<=[;|&>]))(/[a-zA-Z0-9_.@/-]+)' | \
     sort -u || true)
 
   while IFS= read -r ABS_PATH; do
@@ -265,7 +313,8 @@ if [ "$TOOL_NAME" = "Bash" ]; then
 
   for pattern in "${INTERNET_PATTERNS[@]}"; do
     if echo "$COMMAND" | grep -qF "$pattern"; then
-      echo "{\"action\": \"ask\", \"reason\": \"⚠️  Network operation detected: \`${COMMAND:0:80}\` — approval needed.\"}"
+      echo "{\"action\": \"ask\", \"reason\": \"⚠️  Network operation detected: \`${COMMAND:0:80}\` — approval
+needed.\"}"
       exit 0
     fi
   done
