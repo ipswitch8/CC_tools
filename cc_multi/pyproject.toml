@@ -16,7 +16,7 @@ classifiers = [
   "Environment :: X11 Applications :: Qt",
   "Environment :: Win32 (MS Windows)",
   "Intended Audience :: System Administrators",
-  "License :: OSI Approved :: MIT License",
+  "License :: OSI Approved :: GNU Affero General Public License v3",
   "Operating System :: POSIX :: Linux",
   "Operating System :: Microsoft :: Windows",
   "Programming Language :: Python :: 3",

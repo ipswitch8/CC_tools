@@ -13,10 +13,15 @@ version: 1
 # ``_internal/`` directory, so both must end up under usr/bin together.
 script:
   - rm -rf AppDir
-  - mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/scalable/apps AppDir/usr/share/metainfo
+  - mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/scalable/apps AppDir/usr/share/metainfo AppDir/usr/share/cpsm
   - cp -r dist/cpsm/. AppDir/usr/bin/
   - cp cpsm/resources/icons/cpsm.svg AppDir/usr/share/icons/hicolor/scalable/apps/cpsm.svg
   - cp cpsm/resources/icons/cpsm.svg AppDir/cpsm.svg
+  # AGPLv3 §4/§6 require conveying a copy of the license with the binary.
+  # Lives at usr/share/cpsm/ (not usr/share/doc/cpsm/) to dodge the
+  # ``files.exclude: usr/share/doc`` rule that strips apt-deployed docs.
+  - cp LICENSE AppDir/usr/share/cpsm/LICENSE
+  - cp README.md AppDir/usr/share/cpsm/README.md
 
 AppDir:
   path: ./AppDir
