@@ -1,5 +1,5 @@
 ---
-model: claude-sonnet-4-5-20250514
+model: sonnet
 color: red
 description: Traces data flow across the entire application stack from frontend to database
 ---

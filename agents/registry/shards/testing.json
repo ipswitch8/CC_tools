@@ -415,7 +415,13 @@
     "file_path": "~/.claude/agents/testing/karen.md",
     "gate_role": true,
     "may_prompt_user": true,
-    "tools": [],
+    "tools": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash",
+      "jq"
+    ],
     "capabilities": [
       "architecture-design",
       "backend-development",
