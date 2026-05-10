@@ -1,0 +1,70 @@
+# AppImageBuilder.yml — appimagetool configuration for CPSM
+# Targets Ubuntu 22.04+ runtime (glibc >= 2.35)
+# Prerequisites:
+#   - PyInstaller one-folder dist already produced at dist/cpsm/
+#   - appimage-builder installed (pip install appimage-builder)
+# Usage:
+#   appimage-builder --recipe packaging/AppImageBuilder.yml --skip-tests
+
+version: 1
+
+# Pre-population step: copy the PyInstaller bundle into the AppDir before
+# appimage-builder runs apt etc.  The cpsm binary expects a sibling
+# ``_internal/`` directory, so both must end up under usr/bin together.
+script:
+  - rm -rf AppDir
+  - mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/scalable/apps AppDir/usr/share/metainfo
+  - cp -r dist/cpsm/. AppDir/usr/bin/
+  - cp cpsm/resources/icons/cpsm.svg AppDir/usr/share/icons/hicolor/scalable/apps/cpsm.svg
+  - cp cpsm/resources/icons/cpsm.svg AppDir/cpsm.svg
+
+AppDir:
+  path: ./AppDir
+
+  app_info:
+    id: net.itwerx.cpsm
+    name: cpsm
+    icon: cpsm
+    version: !ENV ${CPSM_VERSION:-0.1.0}
+    exec: usr/bin/cpsm
+    exec_args: $@
+
+  apt:
+    arch: amd64
+    sources:
+      - sourceline: deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main restricted universe
+        key_url: http://keyserver.ubuntu.com/pks/lookup?op=get&search=0x871920D1991BC93C
+
+    include:
+      # Minimal runtime libraries — the PyInstaller bundle ships its own Python
+      # but still links against system libssl / libcrypto for cryptography.
+      - libssl3
+      - libcrypt1
+      - libglib2.0-0
+      # D-Bus / SecretService for keyring
+      - libdbus-1-3
+      - libsecret-1-0
+      # Qt / PySide6 system GL
+      - libgl1
+      - libegl1
+
+  files:
+    exclude:
+      - usr/share/doc
+      - usr/share/man
+      - usr/share/locale
+      # systemd / init bits pulled in by libdbus-1-3 transitively but never
+      # needed at runtime — strip to save ~20 MB.
+      - usr/lib/systemd
+      - usr/lib/kernel
+      - etc/init.d
+
+  runtime:
+    env:
+      QT_QPA_PLATFORM: xcb
+      LD_LIBRARY_PATH: $APPDIR/usr/bin/_internal:$APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu
+
+AppImage:
+  arch: x86_64
+  # Output filename pattern: CPSM-<version>-x86_64.AppImage
+  file_name: CPSM-!ENV ${CPSM_VERSION:-0.1.0}-x86_64.AppImage
