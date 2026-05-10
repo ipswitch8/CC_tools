@@ -210,7 +210,7 @@ agent.record_service_documentation(
 - SIMPLIFY=FAIL!
 - SKIP=FAIL!
 - NEVER SIMPLIFY OR SKIP A TEST - JUST FIX THE PROBLEM!
-- This is a Windows system and does not have WSL, though it does have other tools like Python, the Git "bash toolbox" and PowerShell.  Take this into account when handling file edits, searches etc.
+- If I appear to be running on a Windows system that does not have WSL then be sure check for other tools like Python, the Git "bash toolbox" and PowerShell, taking this into account when handling file edits, searches etc.
 - Always add UTF-8 unicode support explicitly to python scripts.
 - Always use SSH keys when available!
 - Always use available agents!

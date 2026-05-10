@@ -7,6 +7,7 @@ description: >
   Use when a task has distinct dependent stages or complex multi-step
   implementation is required.
 tools: Read, Grep, Glob, Write
+model: sonnet
 ---
 
 You are the pipeline architect. Your sole output is a written pipeline.json
@@ -47,18 +48,11 @@ When invoked with a task description:
 }
 ```
 
-4. Initialize `.claude/phase-state.json`:
-
-```json
-{
-  "pipeline": ".claude/pipeline.json",
-  "current_phase_index": 0,
-  "phases_complete": [],
-  "current_gate_results": {},
-  "awaiting_commit": false,
-  "session_started": "<ISO 8601 timestamp>"
-}
-```
+4. Do NOT write the pipeline state file — the pre-tool-use hook blocks it,
+   and the validate-pipeline.sh Stop hook will auto-initialize it when it
+   detects a new pipeline.json (via generated_at timestamp comparison).
+   Writing gate results or initial state from the planner bypasses forgery
+   protection and may be blocked.
 
 5. Confirm to the user: total phase count, list each phase name and its gate agents.
 

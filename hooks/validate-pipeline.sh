@@ -26,6 +26,17 @@ else
   if [ -n "$PIPELINE_GEN" ] && [ "$PIPELINE_GEN" != "$STATE_GEN" ]; then
     NEEDS_RESET=true
   fi
+  # Secondary check: content hash of phase (id + name) pairs.
+  # Catches regenerations that reuse the same generated_at placeholder
+  # but have different phase structure (reordering, inserted phases,
+  # same IDs mapped to different content).
+  if [ "$NEEDS_RESET" = "false" ]; then
+    PIPELINE_SIG=$(jq -r '[.phases[] | (.id + ":" + .name)] | join("|")' "$PIPELINE_FILE" 2>/dev/null | sha256sum | cut -d' ' -f1)
+    STATE_SIG=$(jq -r '.pipeline_content_sig // ""' "$STATE_FILE" 2>/dev/null)
+    if [ -n "$PIPELINE_SIG" ] && [ "$PIPELINE_SIG" != "$STATE_SIG" ]; then
+      NEEDS_RESET=true
+    fi
+  fi
   # Fallback checks (for pipelines without generated_at, or manual edits)
   if [ "$NEEDS_RESET" = "false" ]; then
     PIPELINE_TOTAL=$(jq '.phases | length' "$PIPELINE_FILE" 2>/dev/null)
@@ -47,21 +58,31 @@ else
   fi
 fi
 if [ "$NEEDS_RESET" = "true" ]; then
+  # Clean-reset policy: any pipeline content change (generated_at mismatch,
+  # content-sig mismatch, invalid phase IDs) invalidates ALL prior completions.
+  # Rationale: downstream phases implicitly depend on upstream invariants.
+  # Even phases with identical name+id may depend on behavior that changed
+  # elsewhere in the pipeline. Preserving completions across revisions is
+  # unsafe; re-running gates on unchanged phases is the correct default.
   PIPELINE_GEN=$(jq -r '.generated_at // ""' "$PIPELINE_FILE" 2>/dev/null)
+  PIPELINE_ID=$(jq -r '.pipeline_id // ""' "$PIPELINE_FILE" 2>/dev/null)
+  PIPELINE_SIG=$(jq -r '[.phases[] | (.id + ":" + .name)] | join("|")' "$PIPELINE_FILE" 2>/dev/null | sha256sum | cut -d' ' -f1)
   chmod +w "$STATE_FILE" 2>/dev/null || true
-  jq -n --arg gen "$PIPELINE_GEN" '{
+  jq -n --arg gen "$PIPELINE_GEN" --arg sig "$PIPELINE_SIG" --arg pid "$PIPELINE_ID" '{
     pipeline: ".claude/pipeline.json",
+    pipeline_id: $pid,
     pipeline_generated_at: $gen,
+    pipeline_content_sig: $sig,
     current_phase_index: 0,
     phases_complete: [],
     current_gate_results: {},
     awaiting_commit: false,
-    gate_phase_id: ""
+    gate_phase_id: "",
+    gate_results_by_phase: {}
   }' > "$STATE_FILE"
   chmod -w "$STATE_FILE" 2>/dev/null || true
   PHASE_COUNT=$(jq '.phases | length' "$PIPELINE_FILE")
-  echo "{\"continue\": true, \"systemMessage\": \"Stale state detected (generated_at mismatch or invalid phase
-IDs). Auto-reset to index 0 for current pipeline (${PHASE_COUNT} phases).\"}"
+  echo "{\"continue\": true, \"systemMessage\": \"Pipeline content changed. All completions invalidated; restart at index 0 (${PHASE_COUNT} phases). Downstream phases can depend on upstream invariants — re-gating is required.\"}"
   exit 0
 fi
 IDX=$(jq -r '.current_phase_index // -1' "$STATE_FILE" 2>/dev/null)
