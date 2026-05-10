@@ -75,6 +75,22 @@ class PaneStatus:
     # layout pane via (session, window_index, pane_index).
     window_index: int = -1
     pane_index: int = -1
+    # Foreground command in the pane (tmux #{pane_current_command}).
+    # Empty for dead/unknown panes. The poller surfaces this so higher-level
+    # code can distinguish "ssh running" (green) from "bash at retry prompt
+    # after ssh dropped" (amber) without re-querying the backend.
+    current_command: str = ""
+    # Whether any client is attached to the pane's tmux session. False when
+    # the user has closed the terminal window — the pane is still alive
+    # server-side but no one can see it (blue / disconnected).
+    attached: bool = True
+    # tmux ``pane_start_command`` — the argv used to spawn the pane (e.g.
+    # ``bash /tmp/cpsm-launcher-<conn_id>-<rand>.sh``). Stable across the
+    # pane's lifetime; running processes can't overwrite it. Used by the UI
+    # status lookup as a fallback when the layout's positional key doesn't
+    # match (e.g. a connection running in its own ``cpsm-<conn_id>`` session
+    # before being moved into a group session).
+    start_command: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +111,7 @@ def _classify(
     *,
     interval_s: float,
     last_output_tail: str | None = None,
+    attached: bool = True,
 ) -> PaneStatus:
     """Determine the :class:`PaneState` for *pane*.
 
@@ -104,6 +121,7 @@ def _classify(
                          observation).
         interval_s:      Poll interval in seconds; stale threshold is 2x this.
         last_output_tail: Pre-fetched capture_pane output for ERROR panes.
+        attached:        Whether any client is attached to ``pane.session``.
 
     Returns:
         A new :class:`PaneStatus` reflecting the current classification.
@@ -132,6 +150,9 @@ def _classify(
             last_output_tail=last_output_tail if state is PaneState.ERROR else None,
             window_index=pane.window_index,
             pane_index=pane.pane_index,
+            current_command=pane.current_command,
+            attached=attached,
+            start_command=getattr(pane, "start_command", "") or "",
         )
 
     # ── Alive pane ────────────────────────────────────────────────────────
@@ -145,6 +166,9 @@ def _classify(
             last_output_tail=None,
             window_index=pane.window_index,
             pane_index=pane.pane_index,
+            current_command=pane.current_command,
+            attached=attached,
+            start_command=getattr(pane, "start_command", "") or "",
         )
 
     # Stale: alive but no activity for >= 2x interval.
@@ -166,6 +190,9 @@ def _classify(
                 last_output_tail=None,
                 window_index=pane.window_index,
                 pane_index=pane.pane_index,
+                current_command=pane.current_command,
+                attached=attached,
+                start_command=getattr(pane, "start_command", "") or "",
             )
 
     return PaneStatus(
@@ -177,6 +204,9 @@ def _classify(
         last_output_tail=None,
         window_index=pane.window_index,
         pane_index=pane.pane_index,
+        current_command=pane.current_command,
+        attached=attached,
+        start_command=getattr(pane, "start_command", "") or "",
     )
 
 
@@ -186,6 +216,7 @@ def _process_poll(
     *,
     interval_s: float,
     capture_pane_fn: Callable[[str], str | None],
+    attached_lookup: Callable[[str], bool] | None = None,
 ) -> tuple[list[PaneStatus], list[PaneStatus], set[str]]:
     """Process a single poll result and compute new statuses.
 
@@ -197,6 +228,9 @@ def _process_poll(
         prev_state:      Mapping of pane_id -> last known PaneStatus.
         interval_s:      Poll interval; used for stale detection.
         capture_pane_fn: Callable(pane_id) -> str | None for dead panes.
+        attached_lookup: Callable(session_name) -> bool returning whether any
+                         tmux client is attached to the pane's session. When
+                         None, every pane is treated as attached.
 
     Returns:
         (changed, all_statuses, current_ids):
@@ -221,7 +255,15 @@ def _process_poll(
                 except Exception:
                     tail = None
 
-        new_status = _classify(pane, prev, interval_s=interval_s, last_output_tail=tail)
+        attached = True if attached_lookup is None else bool(attached_lookup(pane.session))
+
+        new_status = _classify(
+            pane,
+            prev,
+            interval_s=interval_s,
+            last_output_tail=tail,
+            attached=attached,
+        )
         all_statuses.append(new_status)
 
         if prev is None or prev.state != new_status.state:
@@ -290,9 +332,25 @@ class StatusPoller(QThread):
             try:
                 panes: list[Pane] = self._backend.list_panes()
             except Exception:
-                # Backend unavailable — skip this poll and retry next cycle.
-                self._interruptible_sleep(interval_s)
-                continue
+                # Backend unavailable — most commonly because the tmux server
+                # exited after the last cpsm session was reaped.  Treat as
+                # "no panes anywhere" so the disappeared-detection branch
+                # below synthesizes UNKNOWN for any previously-known panes;
+                # the UI then resolves them to "disconnected" instead of
+                # rendering a stale snapshot forever.
+                panes = []
+
+            # session_name → attached.  Used to detect "user closed the
+            # terminal window" — the tmux pane stays alive but nothing is
+            # rendering it client-side, so we surface that as detached.
+            attached_map: dict[str, bool] = {}
+            try:
+                for sess in self._backend.list_sessions():
+                    attached_map[sess.name] = bool(getattr(sess, "attached", False))
+            except Exception:
+                # Sessions query failed; default everything to attached so
+                # we don't spuriously mark live panes as disconnected.
+                attached_map = {}
 
             if self._stop.loadRelaxed():
                 return
@@ -302,6 +360,7 @@ class StatusPoller(QThread):
                 self._state,
                 interval_s=interval_s,
                 capture_pane_fn=lambda pid: self._backend.capture_pane(pid, lines=200),
+                attached_lookup=lambda s: attached_map.get(s, True),
             )
 
             for status in changed:
@@ -324,6 +383,9 @@ class StatusPoller(QThread):
                     last_output_tail=None,
                     window_index=prev_status.window_index if prev_status else -1,
                     pane_index=prev_status.pane_index if prev_status else -1,
+                    current_command=prev_status.current_command if prev_status else "",
+                    attached=False,
+                    start_command=prev_status.start_command if prev_status else "",
                 )
                 all_statuses.append(unknown_status)
                 self.state_changed.emit(unknown_status)

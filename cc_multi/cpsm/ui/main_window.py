@@ -25,6 +25,7 @@ Layout
 from __future__ import annotations
 
 import logging
+import os
 import re
 import uuid
 from pathlib import Path
@@ -115,6 +116,99 @@ def _glyph_for(conn: Connection) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Connection status derivation (used by _lookup_connection_status and tests)
+# ---------------------------------------------------------------------------
+
+# Profiles where SSH is the expected foreground process. When the pane is
+# alive but its current_command is shell-ish, that means SSH dropped and
+# the launcher's retry loop is sitting at a prompt — surface as "dropped".
+_REMOTE_PROFILES = frozenset({"ssh-shell", "claude-remote"})
+
+# Foreground commands that count as "the connection is up" for a remote
+# profile. Anything else on a remote profile (bash, zsh, sh, sleep, read…)
+# means the SSH process is no longer running.
+_REMOTE_LIVE_COMMANDS = frozenset(
+    {"ssh", "sshpass", "mosh", "mosh-client", "scp", "sftp", "plink"}
+)
+
+# Sidebar status dot per external status value. Disconnected is treated as
+# the "show no problems" baseline — but we still render a blue dot so the
+# user knows the connection has been launched and is currently offline,
+# rather than mistaking the absence of a dot for "not yet launched".
+_STATUS_DOT: dict[str, str] = {
+    "connected": "🟢",
+    "dropped": "🟡",
+    "disconnected": "🔵",
+    "untracked": "🔵",
+    "error": "🔴",
+}
+
+
+def _derive_external_status(pane_status: Any, profile: str) -> str:
+    """Map a :class:`PaneStatus` + launch profile to one of
+    ``"connected" | "dropped" | "disconnected" | "error"``.
+
+    Rules:
+      * State ERROR → ``error``.
+      * State DISCONNECTED_CLEAN / UNKNOWN / EMPTY_SLOT → ``disconnected``.
+      * Alive (CONNECTED / STALE) but session has no attached client →
+        ``disconnected`` — the user has closed the terminal window.
+      * Alive on a remote profile with shell-ish foreground command →
+        ``dropped`` — SSH itself is no longer running even though the
+        launcher's retry loop kept the pane alive.
+      * Otherwise → ``connected``.
+    """
+    state = getattr(pane_status, "state", None)
+    sv = getattr(state, "value", state)
+
+    if sv == "error":
+        return "error"
+    if sv in ("disconnected_clean", "unknown", "empty_slot"):
+        return "disconnected"
+
+    attached = bool(getattr(pane_status, "attached", True))
+    if not attached:
+        return "disconnected"
+
+    if profile in _REMOTE_PROFILES:
+        cmd = (getattr(pane_status, "current_command", "") or "").strip()
+        if cmd and cmd not in _REMOTE_LIVE_COMMANDS:
+            return "dropped"
+
+    return "connected"
+
+
+_ID_SLUG_RE = re.compile(r"[^a-z0-9-]+")
+
+
+def _suggest_id_from_path(path: str) -> str:
+    """Generate a slug-style id from a working directory path.
+
+    e.g. ``/home/x/projects/dotfiles`` → ``"dotfiles"``;
+         ``/`` or empty → ``"adopted"``.
+    The result is forced through the ID slug regex so it satisfies
+    ``_validate_id_slug`` in the schema.
+    """
+    if not path or path == "/":
+        return "adopted"
+    name = os.path.basename(os.path.abspath(path)) or "adopted"
+    slug = _ID_SLUG_RE.sub("-", name.lower()).strip("-")
+    return slug or "adopted"
+
+
+def _suggest_id_from_host(host: str) -> str:
+    """Generate a slug-style id from a hostname.
+
+    e.g. ``dev.example.com`` → ``"dev"``; empty → ``"adopted"``.
+    """
+    if not host:
+        return "adopted"
+    name = host.split(".")[0]
+    slug = _ID_SLUG_RE.sub("-", name.lower()).strip("-")
+    return slug or "adopted"
+
+
+# ---------------------------------------------------------------------------
 # _MembersListWidget — proper QListWidget subclass for drag source
 # ---------------------------------------------------------------------------
 
@@ -177,6 +271,16 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self._services = services
         self._document: CpsmDocument = document if document is not None else CpsmDocument()
+        # Temp groups (created via "Launch selected as temporary group") are
+        # held in self._document.groups for normal rendering/launch flow but
+        # tracked here so _save_document() can strip them on persist. Pinning
+        # a temp group removes its id from this set.
+        self._temp_group_ids: set[str] = set()
+        self._temp_layout_ids: set[str] = set()
+        # Discovered (outside-CPSM) sessions the user has hidden via the
+        # Discovered category context menu — survives in-session refreshes
+        # but resets on app restart so a relaunch surfaces them again.
+        self._ignored_discovered_pids: set[int] = set()
 
         # Fix #4 — LayoutController (wired after UI is built)
         self._layout_controller: Any = None
@@ -571,6 +675,11 @@ class MainWindow(QMainWindow):
 
         self._session_list = SessionListWidget(parent=self)
 
+        # Search-text or sort-mode changes rebuild the tree internally,
+        # which throws away QTreeWidgetItem references — re-apply the
+        # membership highlights and status dots whenever that happens.
+        self._session_list.tree_rebuilt.connect(self._on_sidebar_tree_rebuilt)
+
         # Wire sidebar double-click
         self._session_list.tree.itemDoubleClicked.connect(self._on_sidebar_double_clicked)
         # Wire sidebar single-click selection to populate the Inspector dock
@@ -840,9 +949,18 @@ class MainWindow(QMainWindow):
                 return conn
         return None
 
-    def _on_status_poll_complete(self, _statuses: Any) -> None:
+    def _on_status_poll_complete(self, statuses: Any) -> None:
         """StatusPoller has a fresh snapshot — re-render canvas + sidebar so
         green/amber/blue pane borders and sidebar dots reflect reality."""
+        # Reap dead panes in cpsm-* sessions so connections that exited
+        # naturally resolve to "disconnected" (blue) instead of lingering as
+        # red dead panes under remain-on-exit.
+        session_svc = getattr(self._services, "session", None) if self._services else None
+        if session_svc is not None and hasattr(session_svc, "cleanup_dead_panes"):
+            try:
+                session_svc.cleanup_dead_panes(statuses)
+            except Exception:
+                pass
         # Re-render the canvas: re-running set_layout with the current data
         # walks the panes and re-evaluates _status_lookup for each.
         if hasattr(self, "_screen_map_widget") and self._screen_map_widget._layout_data:
@@ -854,9 +972,24 @@ class MainWindow(QMainWindow):
         # they touch the same items).
         self._refresh_sidebar_status_dots()
 
+    def _on_sidebar_tree_rebuilt(self) -> None:
+        """SessionListWidget rebuilt its tree (search edited or sort
+        toggled). Re-apply membership highlights and status dots since
+        the QTreeWidgetItem instances were just recreated."""
+        if hasattr(self, "_refresh_sidebar_membership_highlights"):
+            self._refresh_sidebar_membership_highlights()
+        if hasattr(self, "_refresh_sidebar_status_dots"):
+            self._refresh_sidebar_status_dots()
+
     def _refresh_sidebar_status_dots(self) -> None:
-        """Prefix each Connection item's text with a status dot:
-        🟢 connected, 🟠 error, otherwise no prefix.
+        """Prefix each Connection item's text with a status dot.
+
+        Status dots: 🟢 connected, 🟡 dropped (SSH down / retrying),
+        🔵 disconnected, 🔴 error.
+
+        D5 nests outside-instance sub-rows directly under each Connection,
+        so the older 👻 marker has been retired — the children themselves
+        communicate the relationship.
         """
         if not hasattr(self, "_session_list") or self._document is None:
             return
@@ -864,33 +997,47 @@ class MainWindow(QMainWindow):
         for i in range(cat.childCount()):
             item = cat.child(i)
             conn_id: str = item.data(0, Qt.ItemDataRole.UserRole) or ""
-            if not conn_id:
+            if not conn_id or conn_id == "_separator":
                 continue
             conn = self._find_connection_by_id(conn_id)
             base = (conn.name or conn_id) if conn is not None else conn_id
             status = self._lookup_connection_status(conn_id)
-            if status == "connected":
-                item.setText(0, f"🟢 {base}")
-            elif status == "error":
-                item.setText(0, f"🟠 {base}")
-            else:
-                item.setText(0, base)
+            dot = _STATUS_DOT.get(status)
+            item.setText(0, f"{dot} {base}" if dot else base)
 
     def _lookup_connection_status(self, connection_id: str) -> str:
-        """Return one of {"connected", "error", "disconnected"} for
-        *connection_id*.
+        """Return one of {"connected", "dropped", "disconnected", "error",
+        "untracked"} for *connection_id*. ``"untracked"`` means no live
+        pane in the StatusPoller snapshot matches this connection — i.e.
+        the connection has not been launched (or its session has been
+        torn down).
 
-        Round-late: the launch flow now creates one tmux session per
-        monitor (``cpsm-group-<group>-mon-<idx>``), with one window per
-        viewport and one pane per layout pane (in tree-leaf order). To
-        find a connection's status we:
+        The launch flow creates one tmux session per monitor
+        (``cpsm-group-<group>-mon-<idx>``), with one window per viewport
+        and one pane per layout pane (in tree-leaf order). To find a
+        connection's status we:
           1. Walk all groups' layouts; for each leaf whose connection_id
              matches, compute the expected ``(session_name,
              window_index, pane_index)``.
           2. Consult the StatusPoller snapshot for that triple.
-          3. Map PaneState → external status.
-        Connected states (CONNECTED/STALE/EMPTY_SLOT) → "connected";
-        ERROR → "error"; everything else → "disconnected".
+          3. Combine ``PaneState``, ``current_command``, ``attached`` and
+             the connection's launch profile to derive the external state.
+
+        Aggregation is worst-wins so problems aren't hidden when a
+        connection lives on multiple monitors:
+            error > dropped > disconnected > connected.
+
+        Index contract (must be honoured by the launcher and backend):
+          * Session name: ``cpsm-group-<group_id>-mon-<monitor_index>``
+          * Window index = position of the viewport in
+            ``layout.monitors[monitor_index].viewports`` (zero-based).
+          * Pane index = leaf index in the viewport's split tree
+            (or position in ``vp.panes`` for non-tree viewports).
+          * tmux ``base-index`` and ``pane-base-index`` MUST be 0; if
+            either is set to 1 in tmux.conf, lookups silently fail and
+            connections show as "untracked" with no error. The launcher
+            is responsible for invoking tmux with ``-f /dev/null`` or
+            an explicit conf that forces zero-based indexing.
         """
         if self._services is None or self._document is None:
             return "disconnected"
@@ -912,8 +1059,18 @@ class MainWindow(QMainWindow):
             if sess and wi >= 0 and pi >= 0:
                 snap_by_key[(sess, wi, pi)] = st
 
-        result_priority = {"connected": 3, "error": 2, "disconnected": 1}
-        best = "disconnected"
+        result_priority = {
+            "error": 4,
+            "dropped": 3,
+            "disconnected": 2,
+            "connected": 1,
+            "untracked": 0,
+        }
+        best = "untracked"
+        best_rank = result_priority[best]
+
+        conn = self._find_connection_by_id(connection_id)
+        profile = getattr(conn, "launch_profile", "") if conn is not None else ""
 
         for grp in self._document.groups:
             if not grp.default_layout_id:
@@ -934,17 +1091,31 @@ class MainWindow(QMainWindow):
                         key = (session_name, vp_idx, leaf_idx)
                         st = snap_by_key.get(key)
                         if st is None:
+                            # Layout claims this slot but no matching pane
+                            # is in the live snapshot — group hasn't been
+                            # launched (or has been torn down).
                             continue
-                        state = getattr(st, "state", None)
-                        sv = getattr(state, "value", state)
-                        if sv in ("connected", "stale", "empty_slot"):
-                            mapped = "connected"
-                        elif sv == "error":
-                            mapped = "error"
-                        else:
-                            mapped = "disconnected"
-                        if result_priority[mapped] > result_priority[best]:
+                        mapped = _derive_external_status(st, profile)
+                        rank = result_priority[mapped]
+                        if rank > best_rank:
                             best = mapped
+                            best_rank = rank
+
+        if best_rank > 0:
+            return best
+
+        # Fallback: positional match found nothing. Scan the snapshot for any
+        # pane whose start_command references this connection_id — catches the
+        # case where the connection is running in a single-launch session
+        # ``cpsm-<conn_id>`` while its layout slot expects ``cpsm-group-…``.
+        # The screen map will show the live status; the next group launch
+        # will join-pane it into the group session and the positional path
+        # will succeed thereafter.
+        from cpsm.services.session_service import _extract_cpsm_conn_id
+        for st in snap:
+            sc = getattr(st, "start_command", "") or ""
+            if _extract_cpsm_conn_id(sc) == connection_id:
+                return _derive_external_status(st, profile)
         return best
 
     def _build_connections_tab(self) -> QWidget:
@@ -1217,7 +1388,7 @@ class MainWindow(QMainWindow):
             The ``CpsmDocument`` to render.
         """
         self._document = doc
-        self._session_list.load_document(doc)
+        self._session_list.load_document(doc, temp_group_ids=self._temp_group_ids)
         self._populate_connections_tree(doc)
         self._populate_groups_list(doc)
         self._populate_layouts_list(doc)
@@ -1244,6 +1415,11 @@ class MainWindow(QMainWindow):
         # Initial status dots (will refresh on every poll_complete signal).
         if hasattr(self, "_refresh_sidebar_status_dots"):
             self._refresh_sidebar_status_dots()
+        # Discovery: surface outside-CPSM sessions in the sidebar Discovered
+        # category. Runs on every document load so adding a Connection that
+        # matches an existing process flips it from unmatched to matched.
+        if hasattr(self, "_refresh_discovered_sessions"):
+            self._refresh_discovered_sessions()
 
     def _refresh_screens_active_mode(self) -> None:
         """Re-render whichever Screens tab mode is currently selected."""
@@ -1753,10 +1929,6 @@ class MainWindow(QMainWindow):
         # connections grey out without needing a manual group-reselect.
         if hasattr(self, "_refresh_screens_members_list"):
             self._refresh_screens_members_list()
-        # Propagate to live tmux state if the active group is running
-        # (right-click context menu actions land here too).
-        if hasattr(self, "_resync_tmux_to_layout"):
-            self._resync_tmux_to_layout()
 
     def _cmx_pick_connection(self) -> str | None:
         """Open a connection picker dialog; return selected id or None."""
@@ -2018,7 +2190,13 @@ class MainWindow(QMainWindow):
         return Path.home() / ".cpsm.yaml"
 
     def _save_document(self) -> None:
-        """Persist the current document if a repository is wired."""
+        """Persist the current document if a repository is wired.
+
+        Temporary groups (created by "Launch selected as temporary group"
+        but not yet pinned) are stripped from the saved copy. The
+        in-memory ``self._document`` keeps them so the user can still see
+        and pin them; only the on-disk YAML is filtered.
+        """
         if self._services is None:
             return
         repo = getattr(self._services, "repository", None)
@@ -2027,8 +2205,20 @@ class MainWindow(QMainWindow):
         target = self._config_path()
         if target is None:
             return
+        save_doc = self._document
+        if self._temp_group_ids or self._temp_layout_ids:
+            save_doc = self._document.model_copy(update={
+                "groups": [
+                    g for g in self._document.groups
+                    if g.id not in self._temp_group_ids
+                ],
+                "screen_layouts": [
+                    ly for ly in self._document.screen_layouts
+                    if ly.id not in self._temp_layout_ids
+                ],
+            })
         try:
-            repo.save(self._document, target)
+            repo.save(save_doc, target)
         except Exception as exc:
             QMessageBox.warning(self, "Save Failed", str(exc))
 
@@ -2384,6 +2574,8 @@ class MainWindow(QMainWindow):
         """Single-click selection in the sidebar tree.
 
         - Connection selected → populate the Inspector dock.
+        - Discovered sub-row selected → show the parent Connection's Inspector
+          (the sub-row visually belongs to that Connection).
         - Group selected → render that group's layout on the canvas (Round C).
         - Anything else → clear the Inspector.
         """
@@ -2398,6 +2590,18 @@ class MainWindow(QMainWindow):
             return
         category_id: str = parent.data(0, Qt.ItemDataRole.UserRole) or ""
         item_id: str = current.data(0, Qt.ItemDataRole.UserRole) or ""
+
+        # Sub-row under a Connection (D5): treat as a click on the parent.
+        if item_id.startswith("discovered:") and not category_id.startswith(
+            "category_"
+        ):
+            parent_conn_id = parent.data(0, Qt.ItemDataRole.UserRole) or ""
+            conn = self._find_connection_by_id(parent_conn_id)
+            if conn is not None:
+                self._show_inspector_for(conn)
+                return
+            self._clear_inspector()
+            return
 
         if category_id == "category_cat_connections":
             conn = self._find_connection_by_id(item_id)
@@ -2566,6 +2770,8 @@ class MainWindow(QMainWindow):
         for i in range(cat_connections.childCount()):
             item = cat_connections.child(i)
             conn_id = item.data(0, Qt.ItemDataRole.UserRole) or ""
+            if conn_id == "_separator":
+                continue
             is_member = conn_id in member_ids
             is_placed = conn_id in placed_ids
             font = QFont()
@@ -2596,51 +2802,11 @@ class MainWindow(QMainWindow):
                 item.setFont(0, normal_font)
 
     def _on_sidebar_item_clicked(self, item: Any, _column: int) -> None:
-        """Single-click handler. With Ctrl held and a Group active, toggle
-        the clicked Connection's membership in that group.
+        """Single-click handler — currently a no-op. Ctrl-click is reserved
+        for the QTreeWidget's ExtendedSelection multi-select; group
+        membership add/remove now lives on the right-click menu via
+        ``_toggle_connection_membership``.
         """
-        from PySide6.QtWidgets import QApplication, QTreeWidgetItem
-
-        if not isinstance(item, QTreeWidgetItem):
-            return
-        modifiers = QApplication.keyboardModifiers()
-        if not (modifiers & Qt.KeyboardModifier.ControlModifier):
-            return
-        parent = item.parent()
-        if parent is None:
-            return
-        category_id: str = parent.data(0, Qt.ItemDataRole.UserRole) or ""
-        if category_id != "category_cat_connections":
-            return
-        active_gid = self._active_group_id()
-        if not active_gid:
-            return
-        conn_id: str = item.data(0, Qt.ItemDataRole.UserRole) or ""
-        if not conn_id:
-            return
-        # Toggle membership in the active group
-        grp_idx = next(
-            (i for i, g in enumerate(self._document.groups) if g.id == active_gid),
-            None,
-        )
-        if grp_idx is None:
-            return
-        grp = self._document.groups[grp_idx]
-        members = list(grp.members)
-        if conn_id in members:
-            members.remove(conn_id)
-        else:
-            members.append(conn_id)
-        updated = grp.model_copy(update={"members": members})
-        self._document.groups[grp_idx] = updated
-        self._save_document()
-        self._refresh_sidebar_membership_highlights()
-        self._refresh_screens_members_list()
-        self.statusBar().showMessage(
-            f"{'Removed' if conn_id not in members else 'Added'} {conn_id} "
-            f"{'from' if conn_id not in members else 'to'} {grp.name}",
-            3000,
-        )
 
     def _on_sidebar_double_clicked(self, item: Any, _column: int) -> None:
         """Dispatch double-click on sidebar tree items to the appropriate editor."""
@@ -2656,6 +2822,25 @@ class MainWindow(QMainWindow):
 
         item_id: str = item.data(0, Qt.ItemDataRole.UserRole) or ""
         category_id: str = parent.data(0, Qt.ItemDataRole.UserRole) or ""
+
+        # Discovered sub-row (D5) or unmatched discovered row: double-click
+        # opens the appropriate adoption flow without forcing the user
+        # through the right-click menu.
+        if item_id.startswith("discovered:"):
+            try:
+                pid = int(item_id.split(":", 1)[1])
+            except (ValueError, IndexError):
+                return
+            session = self._session_list.get_discovered_session(pid)
+            if session is None:
+                return
+            if session.suggested_connection_id:
+                self._adopt_discovered_session(
+                    session, session.suggested_connection_id
+                )
+            else:
+                self._open_connection_editor_from_discovered(session)
+            return
 
         if category_id == "category_cat_connections":
             conn = self._find_connection_by_id(item_id)
@@ -2674,6 +2859,233 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Sidebar context menu slot
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Discovery (outside-CPSM session adoption)
+    # ------------------------------------------------------------------
+
+    def _refresh_discovered_sessions(self) -> None:
+        """Re-run DiscoveryService and update the sidebar Discovered category.
+
+        Filters out any pids the user has explicitly ignored for this
+        session via the context menu's "Ignore" action.
+
+        After local discovery completes, kicks off a background
+        CorrelationWorker that SSH-probes hosts with ambiguous matches
+        (multiple sibling Connections to the same host) and refines each
+        DiscoveredSession's ``suggested_connection_id`` via remote cwd
+        matching. Results are merged back when the worker emits.
+        """
+        if not hasattr(self, "_session_list") or self._document is None:
+            return
+        discovery = getattr(self._services, "discovery", None) if self._services else None
+        if discovery is None:
+            self._session_list.set_discovered_sessions([])
+            return
+        try:
+            sessions = discovery.find_outside_sessions(self._document)
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "DiscoveryService.find_outside_sessions failed"
+            )
+            sessions = []
+        if self._ignored_discovered_pids:
+            sessions = [s for s in sessions if s.pid not in self._ignored_discovered_pids]
+        self._apply_discovered_sessions(sessions)
+
+        # Kick off correlation off the UI thread. Only worth running when
+        # there's at least one SSH-based discovered session — local
+        # claude-local processes have no remote to probe.
+        correlation = getattr(self._services, "correlation", None) if self._services else None
+        ssh_sessions = [s for s in sessions if s.kind in ("ssh-shell", "claude-remote")]
+        if correlation is not None and ssh_sessions:
+            self._start_correlation_worker(correlation, sessions)
+
+    def _apply_discovered_sessions(self, sessions: list[Any]) -> None:
+        """Push *sessions* into the sidebar and re-stamp Connection dots.
+
+        Split out from :meth:`_refresh_discovered_sessions` so the
+        correlation-worker callback can reuse it after remapping.
+        """
+        self._last_discovered_sessions = list(sessions)
+        self._session_list.set_discovered_sessions(sessions)
+        if hasattr(self, "_refresh_sidebar_status_dots"):
+            self._refresh_sidebar_status_dots()
+
+    def _start_correlation_worker(
+        self, correlation: Any, sessions: list[Any]
+    ) -> None:
+        """Spawn a CorrelationWorker for *sessions* and wire its result
+        back to :meth:`_on_correlation_done`."""
+        if self._document is None:
+            return
+        # Cancel any in-flight worker so we don't race with stale results.
+        old = getattr(self, "_correlation_worker", None)
+        if old is not None and old.isRunning():
+            try:
+                old.requestInterruption()
+                old.wait(50)
+            except Exception:
+                pass
+        from cpsm.workers.correlation_worker import CorrelationWorker
+        worker = CorrelationWorker(correlation, self._document, sessions, parent=self)
+        worker.finished_with_result.connect(self._on_correlation_done)
+        self._correlation_worker = worker
+        worker.start()
+
+    def _on_correlation_done(self, result: Any) -> None:
+        """Merge a CorrelationResult back into the cached discovered list.
+
+        ``result.by_pid`` overrides ``suggested_connection_id`` (a
+        confident match). ``result.cwds_by_pid`` is stamped onto the
+        ``remote_cwd`` field so tooltips can show what the remote shell's
+        cwd actually was, even when no Connection matched.
+        """
+        cached = getattr(self, "_last_discovered_sessions", None)
+        if not cached or not result:
+            return
+        by_pid = getattr(result, "by_pid", {}) or {}
+        cwds_by_pid = getattr(result, "cwds_by_pid", {}) or {}
+        if not by_pid and not cwds_by_pid:
+            return
+        from dataclasses import replace
+        updated: list[Any] = []
+        any_changed = False
+        for s in cached:
+            new_id = by_pid.get(s.pid)
+            new_cwd = cwds_by_pid.get(s.pid)
+            updates: dict[str, Any] = {}
+            if new_id and new_id != s.suggested_connection_id:
+                updates["suggested_connection_id"] = new_id
+            if new_cwd and new_cwd != getattr(s, "remote_cwd", ""):
+                updates["remote_cwd"] = new_cwd
+            if updates:
+                updated.append(replace(s, **updates))
+                any_changed = True
+            else:
+                updated.append(s)
+        if any_changed:
+            self._apply_discovered_sessions(updated)
+
+    def _adopt_discovered_session(
+        self, session: Any, target_connection_id: str
+    ) -> None:
+        """Walk the user through closing *session*'s pid then launch the
+        target connection with ``--continue`` appended (Claude profiles
+        only).
+
+        This is the public entry point used by both the sidebar Adopt
+        action (Phase D2) and the launch interceptor (Phase D3).
+        """
+        if not target_connection_id or self._document is None:
+            return
+        conn = self._find_connection_by_id(target_connection_id)
+        if conn is None:
+            return
+        # Race: between the caller's first discovery probe and now, the
+        # outside pid may have already exited (user closed the terminal
+        # manually). Skip the close-the-pid dialog and just launch with
+        # ``--continue`` — the conversation state Claude wrote to disk is
+        # still adoptable.
+        if session is None:
+            self._launch_connection_with_continue(conn)
+            self._refresh_discovered_sessions()
+            return
+
+        from cpsm.ui.dialogs.adopt_session import AdoptSessionDialog
+
+        target_label = (conn.name or conn.id) if conn is not None else target_connection_id
+        dlg = AdoptSessionDialog(session, target_label, parent=self)
+        dlg.exec()
+        if not dlg.adopted:
+            return
+        self._launch_connection_with_continue(conn)
+        # Refresh so the row disappears now that its pid is gone.
+        self._refresh_discovered_sessions()
+
+    def _launch_connection_with_continue(self, conn: Any) -> None:
+        """Launch *conn* via SessionService with ``--continue`` appended to
+        ``claude_options`` for Claude profiles. For ssh-shell / local-shell
+        profiles, just relaunches as-is (no conversation state to preserve).
+        """
+        if self._services is None or self._document is None:
+            return
+        from cpsm.services.discovery_service import append_continue_flag
+
+        profile = getattr(conn, "launch_profile", "")
+        # Pydantic models are immutable; use model_copy to mutate
+        # claude_options for the launch only.
+        if profile in ("claude-local", "claude-remote"):
+            base_opts = getattr(conn, "claude_options", "") or ""
+            new_opts = append_continue_flag(base_opts)
+            launch_conn = conn.model_copy(update={"claude_options": new_opts})
+            launch_doc = self._document.model_copy(update={
+                "connections": [
+                    launch_conn if c.id == conn.id else c
+                    for c in self._document.connections
+                ]
+            })
+        else:
+            launch_doc = self._document
+        try:
+            self._services.session.launch_one(launch_doc, conn.id)
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "Adoption launch failed for %s", conn.id
+            )
+
+    def _ignore_discovered_pid(self, pid: int) -> None:
+        """User chose 'Ignore' on a Discovered row; hide it for the rest of
+        this app session."""
+        self._ignored_discovered_pids.add(int(pid))
+        self._refresh_discovered_sessions()
+
+    def _open_connection_editor_from_discovered(self, session: Any) -> None:
+        """Open the connection editor pre-populated with the discovered
+        session's host/cwd so the user can save a Connection that matches.
+        Subsequent re-discovery will then mark the row as matched."""
+        from cpsm.data.schema import (
+            ClaudeLocalConnection,
+            ClaudeRemoteConnection,
+            SshShellConnection,
+        )
+        try:
+            if session.kind == "claude-local":
+                draft = ClaudeLocalConnection(
+                    id=_suggest_id_from_path(session.cwd),
+                    name="",
+                    launch_profile="claude-local",
+                    project_folder=session.cwd or "~",
+                    claude_options="",
+                )
+            elif session.kind == "claude-remote":
+                draft = ClaudeRemoteConnection(
+                    id=_suggest_id_from_host(session.host),
+                    name="",
+                    launch_profile="claude-remote",
+                    host=session.host,
+                    user=session.user or "",
+                    project_folder="~",
+                    claude_options="",
+                )
+            elif session.kind == "ssh-shell":
+                draft = SshShellConnection(
+                    id=_suggest_id_from_host(session.host),
+                    name="",
+                    launch_profile="ssh-shell",
+                    host=session.host,
+                    user=session.user or "",
+                )
+            else:
+                return
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "Failed to draft connection from discovered session"
+            )
+            return
+        self._open_connection_editor(draft)
+        # Editor may have saved a new connection; refresh to re-match.
+        self._refresh_discovered_sessions()
 
     def _on_sidebar_context_menu(self, pos: QPoint) -> None:
         """Show a context menu for the right-clicked item in the sidebar tree."""
@@ -2724,12 +3136,25 @@ class MainWindow(QMainWindow):
                 act.setWhatsThis("New Layout")
                 act.triggered.connect(lambda _c=False: self._open_layout_editor(None))
                 menu.addAction(act)
+            elif category_id == "category_cat_discovered":
+                act = QAction("Refresh", self)
+                act.setObjectName("action_ctx_sidebar_cat_discovered_refresh")
+                act.setWhatsThis("Refresh discovered sessions")
+                act.triggered.connect(lambda _c=False: self._refresh_discovered_sessions())
+                menu.addAction(act)
             if not menu.isEmpty():
                 self._exec_menu(menu, global_pos)
             return
 
         # Child item
         category_id = str(parent.data(0, Qt.ItemDataRole.UserRole) or "")
+
+        # Discovered sub-rows are nested under their Connection (D5), so the
+        # immediate parent is a Connection item, not the discovered category.
+        # Route them to the discovered menu regardless of where they live.
+        if item_id.startswith("discovered:"):
+            self._show_discovered_item_menu(item_id, global_pos)
+            return
 
         if category_id == "category_cat_connections":
             conn = self._find_connection_by_id(item_id)
@@ -2756,6 +3181,61 @@ class MainWindow(QMainWindow):
             act.triggered.connect(lambda _c=False, sid=item_id: self._launch_scene_by_id(sid))
             menu.addAction(act)
             self._exec_menu(menu, global_pos)
+        elif category_id == "category_cat_discovered":
+            self._show_discovered_item_menu(item_id, global_pos)
+
+    def _show_discovered_item_menu(self, item_id: str, global_pos: Any) -> None:
+        """Build and exec the right-click menu for a Discovered row."""
+        # item_id is "discovered:<pid>"; extract pid and look up the session.
+        if not item_id.startswith("discovered:"):
+            return
+        try:
+            pid = int(item_id.split(":", 1)[1])
+        except (ValueError, IndexError):
+            return
+        session = self._session_list.get_discovered_session(pid)
+        if session is None:
+            return
+
+        menu = QMenu(self)
+        menu.setObjectName("menu_sidebar_discovered")
+        menu.setAccessibleName("Sidebar Discovered Menu")
+
+        suggested = session.suggested_connection_id
+        if suggested:
+            conn = self._find_connection_by_id(suggested)
+            label = (conn.name or conn.id) if conn is not None else suggested
+            act_adopt = QAction(f"Adopt as {label}", self)
+            act_adopt.setObjectName("action_ctx_discovered_adopt_match")
+            act_adopt.triggered.connect(
+                lambda _c=False, s=session, cid=suggested: self._adopt_discovered_session(s, cid)
+            )
+            menu.addAction(act_adopt)
+
+        act_new = QAction("Adopt as new connection…", self)
+        act_new.setObjectName("action_ctx_discovered_adopt_new")
+        act_new.triggered.connect(
+            lambda _c=False, s=session: self._open_connection_editor_from_discovered(s)
+        )
+        menu.addAction(act_new)
+
+        menu.addSeparator()
+
+        act_ignore = QAction("Ignore (this session)", self)
+        act_ignore.setObjectName("action_ctx_discovered_ignore")
+        act_ignore.triggered.connect(
+            lambda _c=False, p=pid: self._ignore_discovered_pid(p)
+        )
+        menu.addAction(act_ignore)
+
+        act_refresh = QAction("Refresh discovered list", self)
+        act_refresh.setObjectName("action_ctx_discovered_refresh")
+        act_refresh.triggered.connect(
+            lambda _c=False: self._refresh_discovered_sessions()
+        )
+        menu.addAction(act_refresh)
+
+        self._exec_menu(menu, global_pos)
 
     # ------------------------------------------------------------------
     # Tab context menus
@@ -2833,10 +3313,15 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_connection_menu(self, conn: Any, object_name: str) -> QMenu:
-        """Return a fully built context menu for *conn*."""
+        """Return a fully built context menu for *conn*. When multiple
+        connections are selected and *conn* is one of them, the membership
+        and launch actions operate on the whole selection."""
         menu = QMenu(self)
         menu.setObjectName(object_name)
         menu.setAccessibleName("Connection Context Menu")
+
+        targets = self._menu_connection_targets(conn)
+        multi = len(targets) >= 2
 
         act_edit = QAction("Edit…", self)
         act_edit.setObjectName("action_ctx_edit_connection")
@@ -2844,6 +3329,18 @@ class MainWindow(QMainWindow):
         act_edit.setShortcut(QKeySequence(Qt.Key.Key_Return))
         act_edit.triggered.connect(lambda _c=False, c=conn: self._open_connection_editor(c))
         menu.addAction(act_edit)
+
+        if multi:
+            act_launch_temp = QAction(
+                f"Launch {len(targets)} as temporary group", self,
+            )
+            act_launch_temp.setObjectName("action_ctx_launch_temp_group")
+            act_launch_temp.setWhatsThis("Launch selected connections as a temporary group")
+            act_launch_temp.triggered.connect(
+                lambda _c=False, ids=list(targets):
+                    self._launch_selection_as_temp_group(ids),
+            )
+            menu.addAction(act_launch_temp)
 
         act_launch = QAction("Launch", self)
         act_launch.setObjectName("action_ctx_launch_connection")
@@ -2868,6 +3365,43 @@ class MainWindow(QMainWindow):
         act_dup.setWhatsThis("Duplicate Connection")
         act_dup.triggered.connect(lambda _c=False, c=conn: self._duplicate_connection(c))
         menu.addAction(act_dup)
+
+        # Add/Remove from active group — visible only when there is an
+        # active group context (the group whose membership is currently
+        # highlighted in the sidebar). Operates on the selection if multi.
+        active_gid = self._active_group_id()
+        active_grp = self._find_group_by_id(active_gid) if active_gid else None
+        if active_grp is not None and targets:
+            members = set(active_grp.members)
+            in_grp = [cid for cid in targets if cid in members]
+            out_grp = [cid for cid in targets if cid not in members]
+            menu.addSeparator()
+            if out_grp:
+                label = (
+                    f"Add {len(out_grp)} to group '{active_grp.name}'"
+                    if multi else f"Add to group '{active_grp.name}'"
+                )
+                act_add = QAction(label, self)
+                act_add.setObjectName("action_ctx_add_to_group")
+                act_add.setWhatsThis(f"Add to {active_grp.name}")
+                act_add.triggered.connect(
+                    lambda _c=False, ids=list(out_grp), gid=active_gid:
+                        self._add_connections_to_group(ids, gid),
+                )
+                menu.addAction(act_add)
+            if in_grp:
+                label = (
+                    f"Remove {len(in_grp)} from group '{active_grp.name}'"
+                    if multi else f"Remove from group '{active_grp.name}'"
+                )
+                act_rm = QAction(label, self)
+                act_rm.setObjectName("action_ctx_remove_from_group")
+                act_rm.setWhatsThis(f"Remove from {active_grp.name}")
+                act_rm.triggered.connect(
+                    lambda _c=False, ids=list(in_grp), gid=active_gid:
+                        self._remove_connections_from_group(ids, gid),
+                )
+                menu.addAction(act_rm)
 
         menu.addSeparator()
 
@@ -2908,6 +3442,15 @@ class MainWindow(QMainWindow):
         act_dup.setWhatsThis("Duplicate Group")
         act_dup.triggered.connect(lambda _c=False, g=grp: self._duplicate_group(g))
         menu.addAction(act_dup)
+
+        # Pin (save permanently) — only meaningful for in-memory temp groups.
+        if grp.id in self._temp_group_ids:
+            menu.addSeparator()
+            act_pin = QAction("📌 Pin (save permanently)…", self)
+            act_pin.setObjectName("action_ctx_pin_temp_group")
+            act_pin.setWhatsThis("Pin temporary group: save and rename")
+            act_pin.triggered.connect(lambda _c=False, g=grp: self._pin_temp_group(g))
+            menu.addAction(act_pin)
 
         menu.addSeparator()
 
@@ -3055,7 +3598,8 @@ class MainWindow(QMainWindow):
         return "id-" + uuid.uuid4().hex[:8]
 
     def _duplicate_connection(self, conn: Any) -> None:
-        """Deep-copy *conn* with a new id/name and append it to the document."""
+        """Deep-copy *conn* with a new id/name, append it, and open the
+        editor on the new copy so the user can rename/edit immediately."""
         new_id = self._new_unique_id()
         new_name = f"{conn.name or conn.id} (copy)"
         try:
@@ -3065,6 +3609,212 @@ class MainWindow(QMainWindow):
         self._document.connections.append(copy)
         self.load_document(self._document)
         self._save_document()
+        self._open_connection_editor(copy)
+
+    # ------------------------------------------------------------------
+    # Multi-select helpers (sidebar Connections list)
+    # ------------------------------------------------------------------
+
+    def _selected_connection_ids(self) -> list[str]:
+        """Return IDs of currently-selected Connection rows in the sidebar.
+        Skips the orphan separator and any non-connection items.
+        """
+        if not hasattr(self, "_session_list"):
+            return []
+        out: list[str] = []
+        for item in self._session_list.tree.selectedItems():
+            parent = item.parent()
+            if parent is None:
+                continue
+            if (parent.data(0, Qt.ItemDataRole.UserRole) or "") != "category_cat_connections":
+                continue
+            cid = item.data(0, Qt.ItemDataRole.UserRole) or ""
+            if not cid or cid == "_separator":
+                continue
+            out.append(cid)
+        return out
+
+    def _menu_connection_targets(self, right_clicked: Any) -> list[str]:
+        """Return the connection IDs the menu should operate on.
+
+        If *right_clicked* is part of a multi-selection of size ≥ 2,
+        operate on the whole selection. Otherwise just the right-clicked
+        connection (so a casual right-click still works as expected).
+        """
+        sel = self._selected_connection_ids()
+        rc_id = getattr(right_clicked, "id", None) or ""
+        if rc_id and rc_id in sel and len(sel) >= 2:
+            return sel
+        return [rc_id] if rc_id else []
+
+    def _add_connections_to_group(
+        self, conn_ids: list[str], group_id: str,
+    ) -> None:
+        """Append each id in *conn_ids* to *group_id*'s members (if not
+        already present), persist, and refresh sidebar highlights."""
+        if not conn_ids or not group_id:
+            return
+        idx = next(
+            (i for i, g in enumerate(self._document.groups) if g.id == group_id),
+            None,
+        )
+        if idx is None:
+            return
+        grp = self._document.groups[idx]
+        members = list(grp.members)
+        added = []
+        for cid in conn_ids:
+            if cid not in members:
+                members.append(cid)
+                added.append(cid)
+        if not added:
+            return
+        self._document.groups[idx] = grp.model_copy(update={"members": members})
+        self._save_document()
+        self.load_document(self._document)
+        self.statusBar().showMessage(
+            f"Added {len(added)} connection{'s' if len(added) != 1 else ''} to {grp.name}",
+            3000,
+        )
+
+    def _remove_connections_from_group(
+        self, conn_ids: list[str], group_id: str,
+    ) -> None:
+        """Remove each id in *conn_ids* from *group_id*'s members, persist,
+        and refresh sidebar highlights."""
+        if not conn_ids or not group_id:
+            return
+        idx = next(
+            (i for i, g in enumerate(self._document.groups) if g.id == group_id),
+            None,
+        )
+        if idx is None:
+            return
+        grp = self._document.groups[idx]
+        members = [m for m in grp.members if m not in set(conn_ids)]
+        if len(members) == len(grp.members):
+            return
+        self._document.groups[idx] = grp.model_copy(update={"members": members})
+        self._save_document()
+        self.load_document(self._document)
+        self.statusBar().showMessage(
+            f"Removed {len(grp.members) - len(members)} from {grp.name}",
+            3000,
+        )
+
+    def _launch_selection_as_temp_group(self, conn_ids: list[str]) -> None:
+        """Build an in-memory temporary Group + auto-grid layout from
+        *conn_ids* and launch it. The group is held in
+        ``self._document.groups`` for normal rendering but tracked in
+        ``self._temp_group_ids`` so ``_save_document`` strips it.
+        """
+        if not conn_ids:
+            return
+        # Generate a non-colliding temp id
+        n = 1
+        while any(g.id == f"cpsm-temp-{n}" for g in self._document.groups):
+            n += 1
+        tg_id = f"cpsm-temp-{n}"
+        tl_id = f"cpsm-temp-layout-{n}"
+
+        # Auto-grid layout based on monitor aspect ratio.
+        live_monitors = self._query_live_monitors()
+        layout = self._build_grid_layout_for(conn_ids, live_monitors, tl_id)
+
+        from cpsm.data.schema import Group as _Group
+        grp = _Group(
+            id=tg_id,
+            name=f"Temp ({len(conn_ids)} connections)",
+            members=list(conn_ids),
+            launch_order="parallel",
+            default_layout_id=tl_id,
+        )
+        self._document.screen_layouts.append(layout)
+        self._document.groups.append(grp)
+        self._temp_group_ids.add(tg_id)
+        self._temp_layout_ids.add(tl_id)
+        self.load_document(self._document)
+
+        # Launch via the standard group flow.
+        self._launch_group(grp)
+
+    def _build_grid_layout_for(
+        self,
+        conn_ids: list[str],
+        live_monitors: list[Any],
+        layout_id: str,
+    ) -> Any:
+        """Build a ScreenLayout placing *conn_ids* in a grid on the first
+        live monitor. Rows × cols are chosen by aspect ratio so wide
+        monitors get wider grids and tall monitors get taller ones.
+        """
+        from math import ceil, sqrt
+
+        from cpsm.data.schema import (
+            GeometryPct,
+            Monitor as _Monitor,
+            Pane as _Pane,
+            ScreenLayout,
+            Split as _Split,
+            Viewport,
+        )
+
+        n = len(conn_ids)
+        # Aspect ratio of the primary monitor (default 16:9 if unknown).
+        if live_monitors:
+            geom = live_monitors[0].geometry
+            w, h = geom[2], geom[3]
+            ar = (w / h) if h else 16 / 9
+        else:
+            ar = 16 / 9
+        rows = max(1, round(sqrt(n / ar))) if n > 0 else 1
+        cols = max(1, ceil(n / rows))
+
+        # Build a tree: outer split is vertical (rows stacked); each row is a
+        # horizontal split of cols panes. Last row may have fewer panes.
+        leaves = [_Pane(connection_id=cid) for cid in conn_ids]
+        row_nodes: list[Any] = []
+        for r in range(rows):
+            row_leaves = leaves[r * cols : (r + 1) * cols]
+            if not row_leaves:
+                break
+            if len(row_leaves) == 1:
+                row_nodes.append(row_leaves[0])
+            else:
+                row_nodes.append(_Split(direction="h", children=row_leaves))
+        if len(row_nodes) == 1:
+            tree = row_nodes[0]
+        else:
+            tree = _Split(direction="v", children=row_nodes)
+
+        vp = Viewport(
+            id=f"{layout_id}-vp",
+            geometry_pct=GeometryPct(x=0, y=0, w=100, h=100),
+            split_tree=tree,
+            panes=leaves,
+        )
+        # Resolve the live monitor identifier so the layout pins to the
+        # primary display. Falls back to None — the renderer will then use
+        # positional matching, which is fine for one-monitor layouts.
+        ident = (
+            getattr(live_monitors[0], "identifier", None)
+            if live_monitors else None
+        )
+        monitor = _Monitor(identifier=ident, viewports=[vp])
+        return ScreenLayout(
+            id=layout_id, name=f"Grid {rows}×{cols}", monitors=[monitor],
+        )
+
+    def _pin_temp_group(self, grp: Any) -> None:
+        """Promote a temporary group to a saved group: drop it from the
+        temp tracking sets, persist, and open the group editor so the
+        user can rename it before continuing."""
+        self._temp_group_ids.discard(grp.id)
+        if grp.default_layout_id:
+            self._temp_layout_ids.discard(grp.default_layout_id)
+        self._save_document()
+        self.load_document(self._document)
+        self._open_group_editor(grp)
 
     def _duplicate_group(self, grp: Any) -> None:
         """Deep-copy *grp* with a new id/name and append it to the document."""
@@ -3107,6 +3857,23 @@ class MainWindow(QMainWindow):
             return
         if not self._ensure_auth_for_connection(conn):
             return
+        # Conflict check: is there an outside-CPSM session for this conn?
+        resolution = self._resolve_launch_conflicts([conn.id])
+        if resolution is None:
+            return  # user cancelled
+        action = resolution.get(conn.id, "duplicate")
+        if action == "skip":
+            self.statusBar().showMessage(
+                f"Skipped {conn.name or conn.id}", 3000
+            )
+            return
+        if action == "adopt":
+            self._adopt_discovered_session(
+                self._services.discovery.find_for_connection(self._document, conn.id),
+                conn.id,
+            )
+            return
+        # action == "duplicate"
         try:
             session_svc.launch(self._document, conn.id)
             self.statusBar().showMessage(f"Launched {conn.name or conn.id}", 3000)
@@ -3664,14 +4431,118 @@ class MainWindow(QMainWindow):
                     f"Group launch cancelled at {conn.name or conn.id}", 3000
                 )
                 return
+        # Conflict check: discover outside sessions for any member, then
+        # let the user choose adopt / duplicate / skip per-member.
+        resolution = self._resolve_launch_conflicts(list(grp.members))
+        if resolution is None:
+            return  # user cancelled
+        # Process adoptions first (kill outside pids, mutate doc to add
+        # --continue). Skip handling: model_copy the group with the
+        # skipped members removed before calling launch_group.
+        launch_doc = self._document
+        for cid, action in resolution.items():
+            if action == "adopt":
+                conn = self._find_connection_by_id(cid)
+                if conn is None:
+                    continue
+                disc = self._services.discovery.find_for_connection(launch_doc, cid)
+                # Race: outside pid may have exited between conflict
+                # resolution and now. If so, skip the close-the-pid dialog
+                # and still mutate the doc with --continue so Claude
+                # resumes the saved conversation.
+                if disc is not None:
+                    if not self._adopt_pid_via_dialog(disc, conn.name or conn.id):
+                        self.statusBar().showMessage(
+                            f"Group launch cancelled at {conn.name or conn.id}", 3000
+                        )
+                        return
+                # Mutate the doc to append --continue for Claude profiles.
+                launch_doc = self._mutate_doc_with_continue(launch_doc, cid)
+        skipped = {cid for cid, a in resolution.items() if a == "skip"}
+        if skipped:
+            new_members = [m for m in grp.members if m not in skipped]
+            new_groups = [
+                g.model_copy(update={"members": new_members}) if g.id == grp.id else g
+                for g in launch_doc.groups
+            ]
+            launch_doc = launch_doc.model_copy(update={"groups": new_groups})
         try:
             session_svc.launch_group(
-                self._document, grp.id,
+                launch_doc, grp.id,
                 monitors=self._query_live_monitors(),
             )
-            self.statusBar().showMessage(f"Launched group {grp.name}", 3000)
+            msg = f"Launched group {grp.name}"
+            if skipped:
+                msg += f" (skipped {len(skipped)})"
+            self.statusBar().showMessage(msg, 3000)
         except Exception as exc:
             QMessageBox.warning(self, "Launch Failed", str(exc))
+
+    def _resolve_launch_conflicts(
+        self, connection_ids: list[str]
+    ) -> dict[str, str] | None:
+        """Detect outside-CPSM sessions for each id and ask the user how to
+        resolve them. Returns a mapping of connection_id → action
+        (``"adopt" | "duplicate" | "skip"``).
+
+        Connections with no conflict are NOT included in the returned dict
+        — the caller iterates only over conflicts. Returns ``None`` if the
+        user cancels the dialog.
+        """
+        if self._services is None or self._document is None:
+            return {}
+        discovery = getattr(self._services, "discovery", None)
+        if discovery is None:
+            return {}
+        conflicts: list[tuple[str, str, Any]] = []
+        for cid in connection_ids:
+            try:
+                disc = discovery.find_for_connection(self._document, cid)
+            except Exception:
+                disc = None
+            if disc is None:
+                continue
+            conn = self._find_connection_by_id(cid)
+            label = (conn.name or conn.id) if conn is not None else cid
+            conflicts.append((cid, label, disc))
+        if not conflicts:
+            return {}
+        from cpsm.ui.dialogs.launch_conflict import LaunchConflictDialog
+
+        dlg = LaunchConflictDialog(conflicts, parent=self)
+        if dlg.exec() != dlg.DialogCode.Accepted:
+            return None
+        return dict(dlg.actions)
+
+    def _adopt_pid_via_dialog(self, session: Any, target_label: str) -> bool:
+        """Run the AdoptSessionDialog for *session*. Returns True on success."""
+        from cpsm.ui.dialogs.adopt_session import AdoptSessionDialog
+
+        dlg = AdoptSessionDialog(session, target_label, parent=self)
+        dlg.exec()
+        return bool(dlg.adopted)
+
+    def _mutate_doc_with_continue(self, doc: Any, conn_id: str) -> Any:
+        """Return a model_copy of *doc* with ``--continue`` appended to
+        the named connection's ``claude_options`` (Claude profiles only).
+        ssh-shell / local-shell / custom connections are returned
+        unchanged."""
+        from cpsm.services.discovery_service import append_continue_flag
+
+        new_conns = []
+        for c in doc.connections:
+            if c.id != conn_id:
+                new_conns.append(c)
+                continue
+            profile = getattr(c, "launch_profile", "")
+            if profile in ("claude-local", "claude-remote"):
+                base_opts = getattr(c, "claude_options", "") or ""
+                new_conns.append(
+                    c.model_copy(update={"claude_options": append_continue_flag(base_opts)})
+                )
+            else:
+                new_conns.append(c)
+        return doc.model_copy(update={"connections": new_conns})
 
     def _toggle_inspector(self) -> None:
         """Toggle the inspector dock visibility (F4 shortcut)."""
@@ -4265,8 +5136,6 @@ class MainWindow(QMainWindow):
             self._screen_map_widget.set_layout(layout, self._query_live_monitors())
             self._refresh_screens_members_list()
             self._refresh_sidebar_membership_highlights()
-            # Propagate to live tmux state if the group is already running.
-            self._resync_tmux_to_layout()
         else:
             # Live mode — also drive the tmux backend
             if self._layout_controller is not None:
@@ -4433,7 +5302,6 @@ class MainWindow(QMainWindow):
                 self._save_document()
                 self._refresh_screens_preview()
                 self._refresh_screens_members_list()
-                self._resync_tmux_to_layout()
         else:
             # Live mode: drive tmux backend AND mutate document
             if self._layout_controller is not None:
@@ -4543,7 +5411,6 @@ class MainWindow(QMainWindow):
         self._refresh_screens_preview()
         self._refresh_sidebar_membership_highlights()
         self._refresh_screens_members_list()
-        self._resync_tmux_to_layout()
 
         if not is_preview:
             _dd_log.warning(
@@ -4651,7 +5518,6 @@ class MainWindow(QMainWindow):
         self._save_document()
         self._screen_map_widget.set_layout(layout, self._query_live_monitors())
         self._refresh_screens_members_list()
-        self._resync_tmux_to_layout()
 
     # ------------------------------------------------------------------
     # Fix #10 — Launch scene from sidebar

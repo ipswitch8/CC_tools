@@ -14,6 +14,11 @@
 #   project_folder  — remote directory to cd into
 #   claude_options  — options to pass to claude
 set -o pipefail
+# Enable job control so the ssh child gets its own process group and terminal
+# foreground control. Without this, tmux's pane_current_command reports the
+# outer bash even while ssh is the active connection — which makes the UI
+# status-deriver flag every connected pane as "dropped" (amber).
+set -m
 
 _CONN_ID={{connection_id}}
 _REMOTE_SCRIPT="/tmp/cpsm-remote-${_CONN_ID}.sh"

@@ -46,6 +46,10 @@ def _make_services() -> SimpleNamespace:
 
     key_service = KeyService()
     status_poller = StatusPoller(backend, interval_ms=3000)
+    from cpsm.services.correlation_service import CorrelationService
+    from cpsm.services.discovery_service import DiscoveryService
+    discovery = DiscoveryService()
+    correlation = CorrelationService()
     return SimpleNamespace(
         config=config,
         session=session,
@@ -56,6 +60,8 @@ def _make_services() -> SimpleNamespace:
         monitor_service=None,  # populated by run_gui after QApplication exists
         config_path=None,  # populated by run_gui after config is resolved
         status_poller=status_poller,
+        discovery=discovery,
+        correlation=correlation,
     )
 
 
@@ -186,7 +192,23 @@ def run_gui(argv: list[str] | None = None, *, config_path: Path | None = None) -
         Optional explicit `.cpsm.yaml` path supplied via ``--config``.  When
         ``None``, the §2.1 fallback ladder is used; if the resolved path
         doesn't exist, the welcome dialog runs.
+
+    Logging:
+        Setting ``CPSM_LOG_LEVEL=DEBUG`` (or INFO/WARNING/ERROR) in the
+        environment routes all CPSM loggers to stderr at that level.  Useful
+        for diagnosing flows like the correlation probe (D6) which emit
+        per-host status lines at INFO. Default (env var unset) leaves the
+        root logger untouched, so only WARNING+ from caught exceptions is
+        visible.
     """
+    import os as _os
+    log_level = (_os.environ.get("CPSM_LOG_LEVEL") or "").strip().upper()
+    if log_level:
+        logging.basicConfig(
+            level=log_level,
+            format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        )
+
     from PySide6.QtWidgets import QApplication
 
     from cpsm.ui.main_window import MainWindow

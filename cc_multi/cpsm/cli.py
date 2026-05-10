@@ -726,9 +726,13 @@ def dispatch(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     if args.subcommand is None:
-        # No subcommand given — show help (treat as successful usage display)
-        parser.print_help()
-        return EXIT_BAD_ARGS
+        # No subcommand given — default to launching the GUI. The gui
+        # subparser only declares ``--config``, so synthesizing a
+        # Namespace with ``config=None`` is sufficient for cmd_gui's
+        # contract (run_gui falls back to the §2.1 path resolution).
+        args.subcommand = "gui"
+        if not hasattr(args, "config"):
+            args.config = None
 
     handler = _HANDLERS.get(args.subcommand)
     if handler is None:

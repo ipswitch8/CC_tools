@@ -67,11 +67,14 @@ _LOCAL_PROFILES = frozenset({"claude-local", "local-shell"})
 # Match the launcher tmpfile path embedded in a tmux pane's start_command.
 # Format: cpsm-launcher-<conn_id>-<mkstemp-suffix>.sh.  The mkstemp suffix is
 # 8 characters from [A-Za-z0-9_]; we accept 6–16 to absorb platform variation.
+# Connection ids are slug-validated to ``[a-z0-9-]+`` (no underscores), so
+# any ``_`` in the path can only come from the mkstemp suffix — using it as
+# a disambiguator between id and suffix.
 # pane_start_command is set by tmux when the pane is spawned and CANNOT be
 # overwritten by the running process — unlike pane_title, which claude/ssh
 # routinely stomp via terminal escape sequences.
 _CPSM_LAUNCHER_RE = re.compile(
-    r"cpsm-launcher-(?P<id>.+?)-[A-Za-z0-9]{6,16}\.sh"
+    r"cpsm-launcher-(?P<id>.+?)-[A-Za-z0-9_]{6,16}\.sh"
 )
 
 
@@ -601,13 +604,20 @@ class SessionService:
         # at spawn and is immutable.
         from cpsm.data.schema import _flatten_split_tree_leaves as _flatten
 
+        # Scan ALL CPSM-owned panes across every cpsm-* session — not just
+        # this group's prefix. That makes single-launch sessions
+        # (``cpsm-<conn_id>``) and other groups' sessions valid relocation
+        # sources, so dragging an already-running connection into a group's
+        # layout and clicking Launch moves the live pane via ``join-pane``
+        # instead of duplicating it.
         tagged_panes: dict[str, tuple[str, str]] = {}
-        # tagged_panes maps connection_id -> (session_name, pane_id_str)
-        for sess_name, panes in panes_by_session.items():
-            for p in panes:
-                cid = _extract_cpsm_conn_id(getattr(p, "start_command", "") or "")
-                if cid:
-                    tagged_panes[cid] = (sess_name, p.id)
+        for p in all_panes:
+            if not getattr(p, "session", "").startswith("cpsm-"):
+                continue
+            cid = _extract_cpsm_conn_id(getattr(p, "start_command", "") or "")
+            if cid:
+                # Last-write-wins on the rare case of duplicate launches.
+                tagged_panes[cid] = (p.session, p.id)
 
         # Plan moves: connection -> dst_session it should be in.
         moves: list[tuple[str, str, str]] = []  # (src_pane_id, src_sess, dst_sess)
@@ -672,6 +682,20 @@ class SessionService:
                     for p in non_cpsm:
                         with contextlib.suppress(Exception):
                             self._backend.kill_pane(p.id)
+            # Kill source sessions that are now empty (single-launch sessions
+            # have only one pane; after we moved it, the session is dead
+            # weight). tmux may auto-destroy on last-pane-exit, but not
+            # under all configurations — so do it explicitly.
+            moved_src_sessions = {src for _, src, _ in moves}
+            for src in moved_src_sessions:
+                try:
+                    remaining = self._backend.list_panes(src)
+                except Exception:
+                    # Already gone — fine.
+                    continue
+                if not remaining:
+                    with contextlib.suppress(Exception):
+                        self._backend.kill_session(src)
             # Refresh per-session pane snapshots after the moves.
             try:
                 refreshed = self._backend.list_panes(None)
@@ -868,15 +892,21 @@ class SessionService:
         member_results: list[LaunchResult],
         warnings: list[str],
     ) -> None:
-        """Respawn dead panes in *mon_session* using *monitor*'s layout.
+        """Reconcile *mon_session* to *monitor*'s layout, matching panes by
+        ``connection_id`` (extracted from ``pane_start_command``) rather than
+        position. Live processes are preserved when their connection stays
+        in the layout — only added/removed connections cause split/kill, and
+        ``swap-pane`` reorders survivors into the layout's tree-leaf order.
 
-        Alive panes are left untouched. Dead panes whose position matches a
-        layout pane get the layout pane's launcher script. Layout panes
-        with no matching tmux pane are added via split-pane. Excess tmux
-        panes (more than the layout asks for) are killed.
-
-        No new terminal is spawned — the existing one (if attached) keeps
-        showing the session.
+        Per viewport:
+          1. Index existing panes by connection_id (and a placeholder pool
+             for null-slot/untagged panes).
+          2. For each layout leaf in tree order: claim a matching existing
+             pane if available, else mark for split + respawn.
+          3. Kill any existing pane not claimed.
+          4. ``swap-pane`` survivors into layout-leaf-order so positional
+             lookups (and ``select-layout``) line up.
+          5. Apply the tree-aware layout.
         """
         import contextlib
 
@@ -891,11 +921,11 @@ class SessionService:
             if not vp.panes:
                 continue
             target_window = f"{mon_session}:{vp_idx}"
-            existing_window_panes = panes_by_win.get(vp_idx, [])
+            existing_win = panes_by_win.get(vp_idx, [])
 
-            # If the layout has a viewport whose window doesn't exist yet,
-            # create it.
-            if not existing_window_panes:
+            # Create the window if the layout has a viewport whose window
+            # doesn't exist yet.
+            if not existing_win:
                 if vp_idx == 0:
                     # Window 0 should always exist for an existing session;
                     # if it doesn't, something is very off — log and skip.
@@ -913,63 +943,146 @@ class SessionService:
                         f"Reconcile: could not add window for vp {vp.id}: {exc}"
                     )
                     continue
-                # Pull fresh pane list for the brand-new window (1 pane)
                 try:
-                    existing_window_panes = self._backend.list_panes(target_window)
+                    existing_win = list(self._backend.list_panes(target_window))
                 except Exception:
-                    existing_window_panes = []
+                    existing_win = []
 
+            # ── Phase 1: index existing panes by connection_id ──────────
+            existing_by_conn: dict[str, Any] = {}
+            placeholder_pool: list[Any] = []
+            for p in existing_win:
+                sc = getattr(p, "start_command", "") or ""
+                cid = _extract_cpsm_conn_id(sc)
+                if cid:
+                    # Last-write-wins on the rare case of duplicate launches;
+                    # the unclaimed duplicate gets killed in Phase 3.
+                    existing_by_conn[cid] = p
+                else:
+                    # Includes both placeholder launchers and untagged panes
+                    # (e.g. tmux's default shell). Both are fungible reuse
+                    # targets for null/empty layout slots.
+                    placeholder_pool.append(p)
+
+            # ── Phase 2: build the claim plan ────────────────────────────
+            claimed_pane_ids: set[str] = set()
+            # plan[i] = (layout_pane, existing_pane | None, needs_respawn)
+            plan: list[tuple[Any, Any | None, bool]] = []
+            for layout_pane in vp.panes:
+                cid = getattr(layout_pane, "connection_id", None)
+                if cid is not None:
+                    ex = existing_by_conn.get(cid)
+                    if ex is not None and ex.id not in claimed_pane_ids:
+                        claimed_pane_ids.add(ex.id)
+                        # Even an alive pane needs a respawn if it's dead;
+                        # otherwise leave the running process alone.
+                        plan.append(
+                            (layout_pane, ex, bool(getattr(ex, "dead", False)))
+                        )
+                    else:
+                        plan.append((layout_pane, None, True))
+                else:
+                    # Null layout slot — claim any unused placeholder/untagged
+                    # pane to avoid spawning a new one we'd just respawn anyway.
+                    ph = next(
+                        (
+                            p for p in placeholder_pool
+                            if p.id not in claimed_pane_ids
+                        ),
+                        None,
+                    )
+                    if ph is not None:
+                        claimed_pane_ids.add(ph.id)
+                        plan.append(
+                            (layout_pane, ph, True)  # always respawn placeholder
+                        )
+                    else:
+                        plan.append((layout_pane, None, True))
+
+            # ── Phase 3: execute splits + respawns ──────────────────────
             split_dir: Literal["h", "v"] = "h" if vp.tmux_layout in (
                 "even-h", "main-h"
             ) else "v"
+            anchor_pane_target: str | None = (
+                existing_win[0].id if existing_win else None
+            )
 
-            # Iterate layout panes; respawn dead, leave alive, split-and-add
-            # for the overflow.
-            last_target: str | None = None
-            for lp_idx, layout_pane in enumerate(vp.panes):
-                if lp_idx < len(existing_window_panes):
-                    ex = existing_window_panes[lp_idx]
-                    pane_target = f"{target_window}.{ex.pane_index}"
-                    last_target = pane_target
-                    if not getattr(ex, "dead", False):
-                        # Alive — leave alone.
-                        continue
-                    self._respawn_layout_pane(
-                        doc, mon_session, vp, layout_pane, pane_target,
-                        member_results, warnings,
-                    )
-                else:
-                    # Layout has more panes than the existing window — split.
-                    if last_target is None and existing_window_panes:
-                        last_target = (
-                            f"{target_window}.{existing_window_panes[-1].pane_index}"
-                        )
-                    if last_target is None:
+            resolved: list[tuple[Any, Any]] = []  # (layout_pane, pane_obj)
+            for layout_pane, ex, needs_respawn in plan:
+                if ex is None:
+                    if anchor_pane_target is None:
                         warnings.append(
                             f"Reconcile: no anchor pane to split on {target_window}"
                         )
                         break
                     try:
-                        new_pane = self._backend.split_pane(last_target, split_dir)
-                        pane_target = f"{target_window}.{new_pane.pane_index}"
+                        new_pane = self._backend.split_pane(
+                            anchor_pane_target, split_dir,
+                        )
                     except Exception as exc:
                         warnings.append(
                             f"Reconcile: split-pane failed on {target_window}: {exc}"
                         )
                         break
-                    last_target = pane_target
+                    pane_obj = new_pane
+                    anchor_pane_target = new_pane.id
                     self._respawn_layout_pane(
-                        doc, mon_session, vp, layout_pane, pane_target,
+                        doc, mon_session, vp, layout_pane, new_pane.id,
                         member_results, warnings,
                     )
+                else:
+                    pane_obj = ex
+                    if needs_respawn:
+                        self._respawn_layout_pane(
+                            doc, mon_session, vp, layout_pane, ex.id,
+                            member_results, warnings,
+                        )
+                resolved.append((layout_pane, pane_obj))
 
-            # Excess existing panes (layout shrunk) — kill.
-            for excess in existing_window_panes[len(vp.panes):]:
-                with contextlib.suppress(Exception):
-                    self._backend.kill_pane(excess.id)
+            # ── Phase 4: kill unclaimed existing panes ──────────────────
+            for p in existing_win:
+                if p.id not in claimed_pane_ids:
+                    with contextlib.suppress(Exception):
+                        self._backend.kill_pane(p.id)
 
-            # Round 3: apply tree-aware layout (custom string from
-            # split_tree, falling back to preset for legacy viewports).
+            # ── Phase 5: reorder via swap-pane so layout order matches
+            #            tmux pane_index order ────────────────────────────
+            try:
+                current = list(self._backend.list_panes(target_window))
+            except Exception:
+                current = []
+            current.sort(key=lambda x: x.pane_index)
+
+            desired_ids = [pane_obj.id for _lp, pane_obj in resolved]
+            for i, want_id in enumerate(desired_ids):
+                if i >= len(current):
+                    break
+                if current[i].id == want_id:
+                    continue
+                j = next(
+                    (k for k in range(i + 1, len(current))
+                     if current[k].id == want_id),
+                    None,
+                )
+                if j is None:
+                    # Pane vanished mid-reconcile (rare); skip — the layout
+                    # apply will do its best with what's left.
+                    continue
+                try:
+                    self._backend.swap_panes(current[i].id, current[j].id)
+                except Exception as exc:
+                    warnings.append(
+                        f"Reconcile: swap-panes failed on {target_window}: {exc}"
+                    )
+                    break
+                # pane_index has shifted for both swapped panes — refresh.
+                try:
+                    current = list(self._backend.list_panes(target_window))
+                except Exception:
+                    pass
+                current.sort(key=lambda x: x.pane_index)
+
+            # ── Phase 6: apply tree-aware layout ────────────────────────
             self._apply_tree_or_preset_layout(target_window, vp)
 
     def _respawn_layout_pane(
@@ -1235,6 +1348,52 @@ class SessionService:
             logger.info("Killed session '%s'", name)
         except Exception as exc:
             logger.warning("Failed to kill session '%s': %s", name, exc)
+
+    def cleanup_dead_panes(self, snapshot: Any) -> int:
+        """Reap dead panes in cpsm-* sessions discovered in *snapshot*.
+
+        ``remain-on-exit on`` (set in :meth:`_ensure_session`) keeps a tmux pane
+        around after its command exits so the user can read error output.  But
+        for clean exits the pane otherwise lingers indefinitely, leaving the
+        connection's status stuck on red/blue from the dead pane.  This method
+        kills any dead pane in a cpsm-* session so the next poll cycle observes
+        no pane → connection naturally resolves to ``disconnected`` (blue).
+
+        When the killed pane was the last in its session, tmux tears the
+        session down naturally — no separate kill_session call needed.
+
+        Args:
+            snapshot: Iterable of PaneStatus from the StatusPoller.
+
+        Returns:
+            Number of panes killed.
+        """
+        from cpsm.workers.status_poller import PaneState
+
+        dead_states = (PaneState.DISCONNECTED_CLEAN, PaneState.ERROR)
+        killed = 0
+        for st in snapshot or ():
+            sess = getattr(st, "session", "") or ""
+            if not sess.startswith("cpsm-"):
+                continue
+            state = getattr(st, "state", None)
+            if state not in dead_states:
+                continue
+            pane_id = getattr(st, "pane_id", "") or ""
+            if not pane_id:
+                continue
+            try:
+                self._backend.kill_pane(pane_id)
+                killed += 1
+                logger.info(
+                    "Reaped dead pane %s in session '%s' (state=%s)",
+                    pane_id, sess, getattr(state, "value", state),
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Failed to reap dead pane %s in '%s': %s", pane_id, sess, exc
+                )
+        return killed
 
     # ------------------------------------------------------------------
     # Internal helpers

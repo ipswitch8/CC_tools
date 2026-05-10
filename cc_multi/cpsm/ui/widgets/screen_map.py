@@ -104,10 +104,15 @@ _VIEWPORT_PEN_COLOR = QColor("#7ec8e3")
 _VIEWPORT_BRUSH_COLOR = QColor("#0d1b2a")
 _PANE_PEN_COLOR = QColor("#b0c4de")
 _PANE_BRUSH_COLOR = QColor("#2a2a2a")
-# Status-driven pane border colors (Round A)
+# Status-driven pane border colors. The 4-color model:
+#   green  — connected (SSH up, terminal attached)
+#   amber  — dropped   (pane alive but SSH not running; reconnect-loop wait)
+#   blue   — disconnected (terminal closed, pane gone, or clean exit)
+#   red    — error     (pane died with non-zero exit code)
 _PANE_PEN_CONNECTED = QColor("#22c55e")     # green
-_PANE_PEN_ERROR = QColor("#f59e0b")          # amber
+_PANE_PEN_DROPPED = QColor("#f59e0b")        # amber
 _PANE_PEN_DISCONNECTED = QColor("#3b82f6")   # blue
+_PANE_PEN_ERROR = QColor("#ef4444")          # red
 _PANE_EMPTY_PEN_COLOR = QColor("#555577")
 _PANE_EMPTY_BRUSH_COLOR = QColor("#111122")
 _GHOST_BRUSH_COLOR = QColor(50, 60, 80, 140)
@@ -152,12 +157,19 @@ _DIM_OPACITY = 0.50
 
 
 def group_color_for_id(group_id: str, override: str | None = None) -> QColor:
-    """Return a stable QColor for *group_id*, respecting any override hex string."""
+    """Return a stable QColor for *group_id*, respecting any override hex string.
+
+    Uses a deterministic CRC32 hash rather than ``hash()`` so the same id
+    always picks the same palette entry across runs (Python's ``hash()``
+    is randomized per-process via ``PYTHONHASHSEED``, which made test
+    color comparisons flaky).
+    """
     if override:
         c = QColor(override)
         if c.isValid():
             return c
-    idx = hash(group_id) % len(GROUP_PALETTE)
+    import zlib
+    idx = zlib.crc32(group_id.encode("utf-8")) % len(GROUP_PALETTE)
     return QColor(GROUP_PALETTE[idx])
 
 
@@ -447,13 +459,15 @@ def _draw_pane(
 
     cid: str = connection_id
 
-    # Status-driven border color: connected=green, error=amber, else=blue
+    # Status-driven border color. See _PANE_PEN_* constants for the model.
     status = status_lookup(cid) if status_lookup is not None else "disconnected"
     if status == "connected":
         pen_color = _PANE_PEN_CONNECTED
+    elif status == "dropped":
+        pen_color = _PANE_PEN_DROPPED
     elif status == "error":
         pen_color = _PANE_PEN_ERROR
-    else:
+    else:  # disconnected, untracked, unknown — blue
         pen_color = _PANE_PEN_DISCONNECTED
     pen = _make_pen(pen_color, 3.0)
     brush = QBrush(_PANE_BRUSH_COLOR)
@@ -1719,6 +1733,7 @@ class ScreenMapWidget(QWidget):
                     layout,
                     self._monitors,
                     self._connection_lookup,
+                    self._status_lookup,
                 )
                 self._pane_registry = registry
 
