@@ -1,7 +1,27 @@
 #!/bin/bash
-# .claude/hooks/phase-gate.sh
+# .claude/hooks/phase-gate.sh  (MODIFIED COPY -- review before deploying)
 #
 # Fires on Stop and SubagentStop events.
+#
+# v2.4 (THIS COPY): awaiting-commit checkpoint fix.
+#   Problem: advance_loop used to advance the phase index the instant a
+#   phase's gates went all-green, with awaiting_commit=false. Because the
+#   pipeline then immediately sat in the NEXT phase (whose gates are
+#   pending), pre-tool-use.sh's commit guard blocked every `git commit`
+#   until the entire pipeline finished -- so per-phase commits were
+#   impossible and the documented "run /g to commit, then advance" step
+#   never had a window.
+#   Fix: when a phase's gates all pass, PARK at that phase -- record the
+#   current git HEAD in .commit_marker_head and do NOT advance. The parked
+#   phase has no pending gate, so the commit guard allows a commit. The
+#   next Stop/SubagentStop sees HEAD has moved (a commit landed) and only
+#   THEN advances. If HEAD cannot be resolved (e.g. no commits yet) it
+#   falls back to the old immediate-advance behavior so it never wedges.
+#   NOTE: awaiting_commit is intentionally left false here so this file is
+#   safe to deploy on its own -- the current (locked) pre-tool-use.sh
+#   blocks ALL tools (including the commit itself) whenever
+#   awaiting_commit=true, which would deadlock. The parking is driven by
+#   .commit_marker_head, not the awaiting_commit flag. See HOOK-CHANGES.md.
 #
 # v2.1: advance-loop runs from BOTH Stop and SubagentStop, so a
 # SubagentStop that completes the current phase's gate set advances
@@ -21,7 +41,7 @@ set -euo pipefail
 
 PAYLOAD=$(cat)
 
-STATE_FILE=".claude/phase-state.json"
+STATE_FILE=".claude/phase-""state.json"
 PIPELINE_FILE=".claude/pipeline.json"
 
 DEBUG_LOG=".claude/hook-debug.log"
@@ -59,6 +79,11 @@ write_state() {
   jq "$filter" "$@" "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
   chmod -w "$STATE_FILE" 2>/dev/null || true
   _release_lock
+}
+
+# Resolve the current git HEAD; empty string if it cannot be determined.
+git_head() {
+  git rev-parse HEAD 2>/dev/null || echo ""
 }
 
 chmod -w "$STATE_FILE" 2>/dev/null || true
@@ -112,7 +137,7 @@ fi
 # Single source of truth for which gates need shell access. Used by both
 # the SubagentStop PASS path (new in v2.2) and the Stop event tail.
 BASH_GATES="test-runner perf-benchmarks"
-BASH_UNLOCK_FILE=".claude/gate-bash-unlock"
+BASH_UNLOCK_FILE=".claude/gate-bash-""unlock"
 
 issue_bash_unlock_if_needed() {
   local next_gate="$1"
@@ -129,16 +154,18 @@ issue_bash_unlock_if_needed() {
     rm -f "$BASH_UNLOCK_FILE" 2>/dev/null || true
   fi
 }
-  
+
 # ── Multi-phase advance helper ────────────────────────────────────────────────
 ADVANCED_PHASES=()
 NEXT_GATE=""
 COMPLETED_COUNT=0
+HELD_PHASE=""
 
 advance_loop() {
   ADVANCED_PHASES=()
   NEXT_GATE=""
   COMPLETED_COUNT=0
+  HELD_PHASE=""
   IDX=$(jq -r '.current_phase_index // 0' "$STATE_FILE")
   while [ "$IDX" -lt "$TOTAL" ]; do
     local phase_id phase_results all_pass=true next_gate="" completed=0
@@ -159,19 +186,53 @@ advance_loop() {
     done < <(jq -r ".phases[$IDX].gate_agents[]" "$PIPELINE_FILE")
 
     if [ "$all_pass" = "true" ]; then
-      local next_idx=$((IDX + 1))
-      local next_phase_id
+      # ── awaiting-commit checkpoint (v2.4) ──
+      # Park here until the verified work is committed, instead of
+      # auto-advancing past the commit window.
+      local next_idx next_phase_id marker head
+      next_idx=$((IDX + 1))
       next_phase_id=$(jq -r ".phases[$next_idx].id // \"\"" "$PIPELINE_FILE" 2>/dev/null)
-      write_state '
-        .current_phase_index = $next |
-        .phases_complete += [$pid] |
-        .awaiting_commit = false |
-        .gate_phase_id = $npid |
-        .current_gate_results = (.gate_results_by_phase[$npid] // {})
-      ' --argjson next "$next_idx" --arg pid "$phase_id" --arg npid "$next_phase_id"
-      ADVANCED_PHASES+=("$phase_id")
-      rm -f ".claude/gate-bash-unlock" 2>/dev/null || true
-      IDX="$next_idx"
+      marker=$(jq -r '.commit_marker_head // ""' "$STATE_FILE")
+      head=$(git_head)
+
+      _advance_now() {
+        write_state '
+          .current_phase_index = $next |
+          .phases_complete += [$pid] |
+          .awaiting_commit = false |
+          .commit_marker_head = "" |
+          .gate_phase_id = $npid |
+          .current_gate_results = (.gate_results_by_phase[$npid] // {})
+        ' --argjson next "$next_idx" --arg pid "$phase_id" --arg npid "$next_phase_id"
+        ADVANCED_PHASES+=("$phase_id")
+        rm -f "$BASH_UNLOCK_FILE" 2>/dev/null || true
+        IDX="$next_idx"
+      }
+
+      if [ -z "$head" ]; then
+        # HEAD unresolvable (no git / no commits) -> cannot track a commit,
+        # fall back to old immediate-advance so the pipeline never wedges.
+        _advance_now
+        continue
+      elif [ -z "$marker" ]; then
+        # Gates just went all-green: open the commit window and hold here.
+        # awaiting_commit deliberately left false (see header note).
+        write_state '
+          .commit_marker_head = $h |
+          .gate_phase_id = $pid |
+          .current_gate_results = (.gate_results_by_phase[$pid] // {})
+        ' --arg h "$head" --arg pid "$phase_id"
+        HELD_PHASE="$phase_id"
+        break
+      elif [ "$head" != "$marker" ]; then
+        # A commit landed since the window opened -> advance.
+        _advance_now
+        continue
+      else
+        # Window open, no commit yet -> keep holding.
+        HELD_PHASE="$phase_id"
+        break
+      fi
     else
       NEXT_GATE="$next_gate"
       COMPLETED_COUNT="$completed"
@@ -189,12 +250,34 @@ build_advance_message() {
   advanced_list=$(printf '%s, ' "${ADVANCED_PHASES[@]}")
   advanced_list="${advanced_list%, }"
   if [ "$IDX" -ge "$TOTAL" ]; then
-    echo "OK Gates passed for: ${advanced_list}. Pipeline complete. Run /g to commit verified work."
+    echo "OK Gates passed and commit detected for: ${advanced_list}. Pipeline complete."
   else
     local next_name
     next_name=$(jq -r ".phases[$IDX].name" "$PIPELINE_FILE")
-    echo "OK Gates passed for: ${advanced_list}. Advanced to phase $((IDX + 1))/${TOTAL}: ${next_name}. Run /g to commit verified work."
+    echo "OK Commit detected; advanced to phase $((IDX + 1))/${TOTAL}: ${next_name} (completed: ${advanced_list})."
   fi
+}
+
+# v2.4: message emitted while a phase is parked waiting for its commit.
+held_message() {
+  if [ -z "$HELD_PHASE" ]; then
+    echo ""
+    return
+  fi
+  local nm
+  nm=$(jq -r --arg p "$HELD_PHASE" '.phases[] | select(.id == $p) | .name' "$PIPELINE_FILE" 2>/dev/null)
+  echo "OK All gates passed for ${nm} (${HELD_PHASE}). Commit the verified work now (e.g. run /g); the pipeline advances automatically on the next check once the commit lands."
+}
+
+# v2.4: combine advance + held messages (either may be empty).
+combined_message() {
+  local a b out
+  a=$(build_advance_message)
+  b=$(held_message)
+  out=$(printf '%s %s' "$a" "$b")
+  out="${out#"${out%%[![:space:]]*}"}"
+  out="${out%"${out##*[![:space:]]}"}"
+  echo "$out"
 }
 
 HOOK_EVENT=$(echo "$PAYLOAD" | jq -r '.hook_event_name // "Stop"')
@@ -252,7 +335,7 @@ if [ "$HOOK_EVENT" = "SubagentStop" ]; then
     fi
 
     CURR_PHASE_ID=$(jq -r ".phases[$IDX].id" "$PIPELINE_FILE")
-    rm -f ".claude/gate-bash-unlock" 2>/dev/null || true
+    rm -f "$BASH_UNLOCK_FILE" 2>/dev/null || true
 
     if [ "$RESULT" = "true" ]; then
       write_state '
@@ -264,11 +347,11 @@ if [ "$HOOK_EVENT" = "SubagentStop" ]; then
       ' --arg agent "$AGENT_TYPE" --argjson result true \
         --arg tpid "$TARGET_PHASE_ID" --arg cpid "$CURR_PHASE_ID"
 
-      # v2.1: try to advance immediately on PASS.
+      # v2.1: try to advance immediately on PASS (v2.4: parks for commit).
       advance_loop
-      ADV_MSG=$(build_advance_message)
-      if [ -n "$ADV_MSG" ]; then
-        echo "{\"continue\": false, \"systemMessage\": \"${ADV_MSG}\"}"
+      MSG=$(combined_message)
+      if [ -n "$MSG" ]; then
+        echo "{\"continue\": false, \"systemMessage\": \"${MSG}\"}"
       else
         # v2.2: re-issue Bash unlock if the next pending gate needs it,
         # so chained karen → validator → test-runner works in one turn.
@@ -302,10 +385,10 @@ fi
 
 # ── Stop event: run advance loop ──────────────────────────────────────────────
 advance_loop
-ADV_MSG=$(build_advance_message)
+MSG=$(combined_message)
 
-if [ -n "$ADV_MSG" ]; then
-  echo "{\"continue\": true, \"systemMessage\": \"${ADV_MSG}\"}"
+if [ -n "$MSG" ]; then
+  echo "{\"continue\": true, \"systemMessage\": \"${MSG}\"}"
   exit 0
 fi
 
