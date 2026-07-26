@@ -20,7 +20,7 @@
       "first X then Y then Z structure"
     ],
     "always_before": ["any phase execution"],
-    "produces": [".claude/pipeline.json", ".claude/phase-state.json"],
+    "produces": [".claude/pipelines/<pipeline-id>/pipeline.json", ".claude/pipelines/<pipeline-id>/phase-state.json"],
     "test_types": [],
     "limitations": ["planning only — does not implement"]
   },
