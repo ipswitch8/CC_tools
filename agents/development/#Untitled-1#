@@ -1,0 +1,37 @@
+/a write a script to retrieve an SSL/TLS certificate from a URL and download the entire certificate chain back to the root certificate, then save it in a format suitable for importing into a Fortigate firewall.
+
+Your task is to create a complete, working script that accomplishes the following:
+
+0. Prompts for the URL
+1. Connects to the provided URL and retrieves its SSL/TLS certificate
+2. Extracts the entire certificate chain, including all intermediate certificates and the root certificate
+3. Formats and saves the certificates in a way that can be imported into a Fortigate firewall
+
+Important requirements:
+- Fortigate firewalls typically accept certificates in PEM format
+- The certificate chain should include the server certificate, all intermediate CA certificates, and the root CA certificate
+- Each certificate in the chain should be clearly separated
+- The script should handle errors gracefully (e.g., connection failures, invalid URLs, SSL errors)
+- Include comments in the script explaining what each section does
+
+Before writing the script, use the scratchpad below to think through your approach:
+
+<scratchpad>
+Consider:
+- What programming language is most appropriate for this task (bash, Python, etc.)
+- What tools or libraries are needed (openssl, ssl module, requests, etc.)
+- How to extract the full certificate chain
+- How to format the output for Fortigate compatibility
+- What error handling is needed
+- How to save the certificates to a file
+</scratchpad>
+
+Now write your complete script inside <script> tags. The script should be ready to run and should include:
+- Appropriate shebang line (if applicable)
+- Clear comments explaining each step
+- Error handling
+- Output that saves the certificate chain in PEM format suitable for Fortigate import
+
+After the script, provide a brief explanation inside <usage> tags of how to run the script and what output file(s) it will create.
+
+Your final output should consist of the script itself and the usage instructions. Do not include the scratchpad in your final output.

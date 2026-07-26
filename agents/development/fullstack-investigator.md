@@ -1,4 +1,5 @@
 ---
+name: fullstack-investigator
 model: sonnet
 color: red
 description: Traces data flow across the entire application stack from frontend to database

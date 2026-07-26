@@ -13,8 +13,10 @@ You are a security gate agent. You scan for issues, you do not fix them.
 
 When invoked:
 
-1. Read `.claude/phase-state.json` → `current_phase_index`
-2. Read `.claude/pipeline.json` → understand what the current phase produced
+1. Read `.claude/pipelines/<pipeline-id>/phase-state.json` → `current_phase_index`.
+   The orchestrator gives you `<pipeline-id>` and target `<phase-id>` (pipeline-id
+   defaults to the session id).
+2. Read `.claude/pipelines/<pipeline-id>/pipeline.json` → understand what the current phase produced
 
 Run these checks:
 
@@ -49,12 +51,11 @@ done
 # Python: pip-audit 2>/dev/null | grep -E "CRITICAL|HIGH" | head -10
 ```
 
-3. Report your verdict — do NOT write to the pipeline state file directly.
-   The SubagentStop hook parses your output and records the result.
-   Any attempt to modify state files will be blocked by the pre-tool-use
-   hook and bypasses forgery protection.
+3. Do NOT write to the pipeline state file directly — the pre-tool-use hook
+   blocks it. The gate hook reads an artifact, not your prose.
 
-4. End your response with exactly one line:
-   - `VERDICT: PASS` — if no critical or high-severity findings
-   - `VERDICT: FAIL` — if critical/high findings exist (list file, line, severity per finding)
-   Findings in test files or `.example` files are informational only.
+4. As your FINAL action, emit the verdict artifact:
+       ~/.claude/hooks/emit-gate-verdict.sh <phase-id> security-audit PASS|FAIL --pipeline <pipeline-id>
+   Use PASS if there are no critical/high-severity findings, FAIL otherwise.
+   Above it, list each finding (file, line, severity) and a `VERDICT:` summary
+   line. Findings in test files or `.example` files are informational only.

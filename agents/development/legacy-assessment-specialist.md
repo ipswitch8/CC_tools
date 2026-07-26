@@ -1,4 +1,5 @@
 ---
+name: legacy-assessment-specialist
 model: sonnet
 color: red
 description: Investigates and documents undocumented or poorly documented legacy codebases
