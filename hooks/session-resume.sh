@@ -9,15 +9,23 @@
 
 set -euo pipefail
 
-PAYLOAD=$(cat)
-TRIGGER=$(echo "$PAYLOAD" | jq -r '.trigger // ""')
+BLOB=$(cat)
+TRIGGER=$(echo "$BLOB" | jq -r '.trigger // ""')
 
 if [ "$TRIGGER" != "init" ]; then
   exit 0
 fi
 
-STATE_FILE=".claude/phase-state.json"
-PIPELINE_FILE=".claude/pipeline.json"
+# Resolve the per-session pipeline base (namespaced, id defaults to session id).
+# The old literal "<id>" placeholder never resolved, so resume never fired.
+_SID=$(printf '%s' "$BLOB" | jq -r '.session_id // ""' 2>/dev/null || echo "")
+if [ -f "$(dirname "${BASH_SOURCE[0]}")/pipeline-lib.sh" ]; then
+  . "$(dirname "${BASH_SOURCE[0]}")/pipeline-lib.sh"
+  _BASE=$(resolve_pipeline_base "$_SID" 2>/dev/null || echo ".claude")
+else _BASE=".claude"; fi
+[ -n "$_BASE" ] || _BASE=".claude"
+STATE_FILE="$_BASE/phase-""state.json"
+PIPELINE_FILE="$_BASE/pipeline.json"
 
 if [ ! -f "$STATE_FILE" ] || [ ! -f "$PIPELINE_FILE" ]; then
   exit 0
@@ -52,8 +60,8 @@ Phases complete: ${COMPLETED}
 Current phase: ${PHASE_NAME} — ${PHASE_DESC}
 Next pending gate: ${NEXT_GATE}
 
-Read .claude/pipeline.json for the full plan and .claude/phase-state.json
-for current gate results. Load registry/manifest.json to identify needed
+Read ${PIPELINE_FILE} for the full plan and ${STATE_FILE}
+for current gate results. Load agents/registry/manifest.json to identify needed
 shards. Resume from current phase — do not restart completed phases."
 
 echo "{\"additionalContext\": \"${CONTEXT}\"}"

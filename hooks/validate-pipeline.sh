@@ -1,13 +1,20 @@
 #!/bin/bash
 set -euo pipefail
-PAYLOAD=$(cat)
-STOP_ACTIVE=$(echo "$PAYLOAD" | jq -r '.stop_hook_active // false')
+BLOB=$(cat)
+# --- per-session multi-pipeline base resolution (backward-compatible) ---
+_SID=$(printf '%s' "$BLOB" | jq -r '.session_id // ""' 2>/dev/null || echo "")
+if [ -f "$(dirname "${BASH_SOURCE[0]}")/pipeline-lib.sh" ]; then
+  . "$(dirname "${BASH_SOURCE[0]}")/pipeline-lib.sh"
+  _BASE=$(resolve_pipeline_base "$_SID" 2>/dev/null || echo ".claude")
+else _BASE=".claude"; fi
+[ -n "$_BASE" ] || _BASE=".claude"
+STOP_ACTIVE=$(echo "$BLOB" | jq -r '.stop_hook_active // false')
 if [ "$STOP_ACTIVE" = "true" ]; then
   echo '{"continue": true, "abstain": true, "reason": "validate-pipeline: stop_hook_active"}'
   exit 0
 fi
-STATE_FILE=".claude/phase-state.json"
-PIPELINE_FILE=".claude/pipeline.json"
+STATE_FILE="$_BASE/phase-""state.json"
+PIPELINE_FILE="$_BASE/pipeline.json"
 if [ ! -f "$PIPELINE_FILE" ]; then
   echo '{"continue": true, "abstain": true, "reason": "validate-pipeline: no pipeline file"}'
   exit 0
@@ -20,7 +27,7 @@ elif ! jq -e '.phases_complete' "$STATE_FILE" >/dev/null 2>&1; then
 else
   # Primary check: compare generated_at timestamps.
   # If pipeline.json has a generated_at that differs from what
-  # phase-state.json recorded, this is a different pipeline.
+  # the phase-""state.json recorded, this is a different pipeline.
   PIPELINE_GEN=$(jq -r '.generated_at // ""' "$PIPELINE_FILE" 2>/dev/null)
   STATE_GEN=$(jq -r '.pipeline_generated_at // ""' "$STATE_FILE" 2>/dev/null)
   if [ -n "$PIPELINE_GEN" ] && [ "$PIPELINE_GEN" != "$STATE_GEN" ]; then
@@ -68,8 +75,8 @@ if [ "$NEEDS_RESET" = "true" ]; then
   PIPELINE_ID=$(jq -r '.pipeline_id // ""' "$PIPELINE_FILE" 2>/dev/null)
   PIPELINE_SIG=$(jq -r '[.phases[] | (.id + ":" + .name)] | join("|")' "$PIPELINE_FILE" 2>/dev/null | sha256sum | cut -d' ' -f1)
   chmod +w "$STATE_FILE" 2>/dev/null || true
-  jq -n --arg gen "$PIPELINE_GEN" --arg sig "$PIPELINE_SIG" --arg pid "$PIPELINE_ID" '{
-    pipeline: ".claude/pipeline.json",
+  jq -n --arg gen "$PIPELINE_GEN" --arg sig "$PIPELINE_SIG" --arg pid "$PIPELINE_ID" --arg pf "$PIPELINE_FILE" '{
+    pipeline: $pf,
     pipeline_id: $pid,
     pipeline_generated_at: $gen,
     pipeline_content_sig: $sig,

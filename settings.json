@@ -11,6 +11,10 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/pre-tool-use.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/hook-liveness-guard.sh"
           }
         ]
       }
@@ -25,6 +29,16 @@
         ]
       }
     ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/precompact-marker.sh"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -35,20 +49,28 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/phase-gate.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/heartbeat.sh"
           }
         ]
       }
     ],
-     "SubagentStop": [
-       {
-         "hooks": [
-           {
-             "type": "command",
-             "command": "~/.claude/hooks/validate-pipeline.sh"
-           },
-           {
-             "type": "command",
-             "command": "~/.claude/hooks/phase-gate.sh"
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/validate-pipeline.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/phase-gate.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/heartbeat.sh"
           }
         ]
       }
@@ -64,11 +86,12 @@
       }
     ]
   },
-  "alwaysThinkingEnabled": true,
-  "effortLevel": "medium",
-  "skipDangerousModePermissionPrompt": true,
   "statusLine": {
     "type": "command",
     "command": "jq -r '.workspace.project_dir'"
-  }
+  },
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "medium",
+  "skipDangerousModePermissionPrompt": true,
+  "model": "opus[1m]"
 }

@@ -1,4 +1,4 @@
-# Execution Protocol
+﻿# Execution Protocol
 
 ## Agent Registry
 
@@ -6,7 +6,7 @@ The registry uses a manifest + shards structure to keep context lean.
 
 **Always start here:**
 ```
-registry/manifest.json
+agents/registry/manifest.json
 ```
 
 Read the manifest to identify which shards are relevant to the task.
@@ -15,6 +15,32 @@ Load only those shards. Never load all shards at once.
 **Always load:** `meta` shard (orchestrator, agent-organizer, context-manager)
 **Load for complex/phased tasks:** `pipeline` shard (planner, gate agents)
 **Load by task domain:** see manifest `load_when` fields per shard
+
+---
+
+## Pipelines are per-session and namespaced
+
+Pipeline state lives under `.claude/pipelines/<pipeline-id>/`, keyed by session
+id, so one project folder can host one OR several concurrent pipelines uniformly.
+Sessions ALWAYS run in the main project folder (no git worktree, no directory
+switching). The `<pipeline-id>` **defaults to the session id**, so a single
+pipeline needs no special handling — it is just the N=1 case.
+
+- **Per-pipeline state** — `.claude/pipelines/<pipeline-id>/`:
+  - `pipeline.json` — phase plan + gate-agent lists per phase (written by planner)
+  - `phase-state.json` — the gate ledger: current index, completed phases, gate
+    results (written by hooks ONLY)
+  - `gate-artifacts/<phase-id>/<agent>.json` — machine-checked verdict evidence
+- **Binding** — `.claude/bindings/<session-id>` — contents are the `<pipeline-id>`;
+  present ONLY when the id differs from the session id (a named pipeline, or a
+  fresh-session reattach).
+- Hooks resolve the base automatically from the payload `session_id` (stable
+  across compaction and `--resume`). You never edit the ledger or bindings by
+  hand — the pre-tool-use hook forbids it.
+
+Session id: read from the newest transcript basename
+(`ls -t ~/.claude/projects/<encoded-project-dir>/*.jsonl | head -1`, minus
+`.jsonl`) or your scratchpad path.
 
 ---
 
@@ -28,16 +54,26 @@ described as "first X, then Y, then Z" where each step gates the next,
 use phases. Single-step tasks do not need phases.
 
 ### Mandatory sequence
-1. **Load the pipeline shard** from the registry
-2. **Invoke the `planner` agent** with the full task description
-   Wait for confirmation that `pipeline.json` has been written
-3. **Read `pipeline.json`** to understand all phases before starting work
-4. **Execute phases in index order** using agents from relevant registry shards
-5. **After each phase**, invoke gate agents one at a time in the order listed in that phase's `pipeline.json` entry
-6. **Never advance** to the next phase until all gate agents have passed
-7. **On gate failure**: re-invoke the implementing agent to fix the issue, re-run the failed gate — do not skip or override
-8. **After all gates pass**, run `/g` to commit the phase's verified work
-9. **Phase advances** automatically after `/g` completes
+1. **Load the pipeline shard** from the registry.
+2. **Create the pipeline namespace:** read your session id, then
+   `~/.claude/hooks/pipeline-ctl.sh init <session-id> [pipeline-id]`
+   (omit the id for a single pipeline — it defaults to the session id; pass an
+   explicit id only to run several at once with meaningful names).
+3. **Invoke the `planner` agent** with the full task description, told to write
+   `pipeline.json` **into** `.claude/pipelines/<pipeline-id>/`. Wait for
+   confirmation that it has been written.
+4. **Read** `.claude/pipelines/<pipeline-id>/pipeline.json` to understand all
+   phases before starting work.
+5. **Execute phases in index order** using agents from relevant registry shards.
+6. **After each phase**, invoke gate agents one at a time in the order listed in
+   that phase's `pipeline.json` entry. Each gate agent's FINAL action is:
+   `~/.claude/hooks/emit-gate-verdict.sh <phase-id> <agent> PASS|FAIL [gtest-xml] [target-test] --pipeline <pipeline-id>`
+7. **Never advance** to the next phase until all gate agents have passed
+   (artifact-verified — see the Gate Reliability Protocol).
+8. **On gate failure**: re-invoke the implementing agent to fix the issue, re-run
+   the failed gate — do not skip or override.
+9. **After all gates pass**, run `/g` to commit the phase's verified work; the
+   phase advances automatically after `/g` completes.
 
 ### Gate agents (all in pipeline shard)
 
@@ -49,12 +85,38 @@ use phases. Single-step tasks do not need phases.
 | `security-audit` | Scans for secrets/vulns | Phase touches auth, secrets, infra |
 | `perf-benchmarks` | Runs benchmarks | Phase affects performance-critical paths |
 
-### State files (written by planner, read by hooks)
+### Gate Reliability Protocol (verdicts from artifacts; survives the post-compact hook bug)
 
-- `.claude/pipeline.json` — full phase plan, gate agent lists per phase
-- `.claude/phase-state.json` — current index, completed phases, gate results
+Read this every session — it is durable where mid-conversation learning is not.
 
-Hooks read these automatically. Do not modify them manually during execution.
+- **Verdicts come from artifacts, never prose.** A gate passes only when a
+  machine-checked artifact exists at
+  `.claude/pipelines/<pipeline-id>/gate-artifacts/<phase-id>/<agent>.json` =
+  `{"verdict":"PASS"}`, plus (for `test-runner`/`perf-benchmarks`) a green
+  `gtest-results.xml` in that same dir. Emit them with `emit-gate-verdict.sh`
+  (step 6) so they are byte-correct and correctly located — nothing is
+  interpreted from free prose.
+- **After any /compact or session resume, before acting on a pipeline:**
+  1. Re-ground from ground truth, not conversational memory: read
+     `.claude/pipelines/<pipeline-id>/pipeline.json` and the `gate-artifacts/`
+     evidence (and `pipeline-status.snapshot` if present).
+  2. Run `~/.claude/hooks/check-hooks-alive.sh <session-id>`. If it prints
+     **DEAD**, the Stop/SubagentStop recording hooks are not firing (the compact
+     bug). **HARD STOP:** do not commit, do not advance, do not treat any gate as
+     passed; tell the user the hooks appear dead and recommend restarting the
+     session, then stop. (You cannot restart the session yourself — it is the
+     user's action.)
+- `hook-liveness-guard.sh` (PreToolUse) enforces the same rule mechanically by
+  blocking `git commit` when a compaction occurred with no heartbeat since. Every
+  path fails closed: the worst case is a blocked commit, never a forged or stale pass.
+
+### State files (per pipeline; read by hooks automatically)
+
+- `.claude/pipelines/<pipeline-id>/pipeline.json` — phase plan + gate lists (planner).
+- `.claude/pipelines/<pipeline-id>/phase-state.json` — the gate ledger (hooks only).
+- `.claude/pipelines/<pipeline-id>/gate-artifacts/` — verdict evidence.
+
+Do not modify the ledger or bindings manually during execution — the hooks own them.
 
 ### Gate Discipline
 
@@ -78,125 +140,35 @@ cycle time. Success rate of skipping gates: **0%**.
 3. When a gate agent returns FAIL, the findings are the **next
    work items** — not obstacles to argue away or reclassify.
 4. Do not merge phases to reduce the number of gate cycles.
-5. Do not advance phase-state.json via Bash to bypass the hook.
-6. Do not fabricate gate results by writing `true` into
-   phase-state.json without running the agent.
-7. The pre-tool-use hook enforces mechanically: blocks
-   Bash/Write/Edit once a gate is invoked until all pass; blocks
-   `git commit` if gates pending; hard-blocks `current_gate_results`
-   modification while gates are in progress; prompts user on
-   `phases_complete`/`current_phase_index` manipulation.
+5. Do not advance the gate ledger via Bash to bypass the hook.
+6. Do not fabricate gate results by writing `true` into the ledger
+   without running the agent (verdicts come from artifacts only).
+7. The pre-tool-use hook enforces mechanically: it resolves the current
+   session's pipeline ledger, then blocks Bash/Write/Edit once a gate is
+   invoked until all pass; blocks `git commit` if gates pending; hard-blocks
+   `current_gate_results` modification while gates are in progress; prompts user
+   on `phases_complete`/`current_phase_index` manipulation.
 
 ---
+
+## Multi-Pipeline quick reference
+
+- **Start any pipeline:** `~/.claude/hooks/pipeline-ctl.sh init <session-id> [pipeline-id]`.
+- **Resume / after compaction:** nothing — the session id (and its binding) survive.
+- **Continue in a genuinely fresh session (not --resume):**
+  `~/.claude/hooks/pipeline-ctl.sh reattach <new-session-id> <pipeline-id>`,
+  recovering the id from the restored conversation.
+- **Inspect:** `pipeline-ctl.sh status <session-id>` | `list` | `resolve <session-id>`.
+
+*(This section is self-contained — the multi-pipeline mechanism is fully described
+above; no separate protocol file is needed. Migration note: a pre-existing legacy
+pipeline at singular `.claude/pipeline.json` is no longer auto-resolved — move it
+into `.claude/pipelines/<session-id>/` or complete it before deploying.)*
 
 ## Commands
 
-- `/run <task>` — reads manifest, auto-detects whether phases are needed
-- `/plan-and-run <task>` — explicitly invokes planner first, then executes
-
-# Project Memory System
-
-**Last Updated:** 2025-10-12
-**Version:** 6.3 (Segmented Memory)
-
-> This file serves as the main index for the segmented memory system. Detailed knowledge is organized in topic-specific files under `memory/`.
-
----
-
-## 📋 Memory Structure
-
-### Architecture Decisions
-**Location:** `memory/adr/`
-
-Recent ADRs:
-- [001-use-segmented-memory-for-project-tracking](memory/adr/001-use-segmented-memory-for-project-tracking.md)
-
-**Total ADRs:** 1
-
-### Patterns & Conventions
-**Location:** `memory/patterns/`
-
-- [architecture-patterns](memory/patterns/architecture-patterns.md)
-- [coding-patterns](memory/patterns/coding-patterns.md)
-
-### Services & Components
-**Location:** `memory/services/`
-
-- [memory-agent-v63](memory/services/memory-agent-v63.md)
-- [pattern-library-v63](memory/services/pattern-library-v63.md)
-- [smart-validation-module-v63](memory/services/smart-validation-module-v63.md)
-
-### Agent Coordination
-**Location:** `memory/agent-coordination/`
-
-- [Successful Workflows](memory/agent-coordination/successful-workflows.md)
-
-### Technical Debt
-**Location:** `memory/technical-debt/`
-
-- [Known Issues](memory/technical-debt/known-issues.md)
-
----
-
-## 🎯 Quick Reference
-
-### For Enterprise SaaS Projects
-
-This segmented structure is optimized for:
-- Distributed architecture documentation
-- Microservices management
-- Team collaboration via Git
-- Architectural decision tracking
-- Pattern standardization
-
-### Memory Categories
-
-1. **Architecture** (`memory/architecture/`) - High-level system design
-2. **Services** (`memory/services/`) - Service-specific documentation
-3. **ADR** (`memory/adr/`) - Architecture Decision Records
-4. **Patterns** (`memory/patterns/`) - Coding conventions and patterns
-5. **Agent Coordination** (`memory/agent-coordination/`) - Successful workflows
-6. **Technical Debt** (`memory/technical-debt/`) - Issues and improvements
-
----
-
-## 🔮 Usage
-
-### Recording New Information
-
-Use the Memory Agent API:
-
-```python
-from memory_agent import MemoryAgent
-
-agent = MemoryAgent()
-
-# Record architecture decision
-agent.record_architecture_decision(
-    title="Use Event Sourcing for Order Service",
-    context="Need audit trail and event replay",
-    decision="Implement event sourcing pattern",
-    consequences="Increased complexity, better auditability"
-)
-
-# Record successful workflow
-agent.record_agent_workflow(
-    task_description="Implement payment service",
-    agents_used=["backend-architect", "backend-developer", "api-specialist"],
-    outcome="Payment service deployed successfully",
-    duration="2 hours"
-)
-
-# Document a service
-agent.record_service_documentation(
-    service_name="Payment Service",
-    description="Handles payment processing via Stripe",
-    tech_stack=["Python", "FastAPI", "Stripe SDK"],
-    endpoints=[
-        {"method": "POST", "path": "/api/payments", "description": "Process payment"}
-    ]
-)
-```
+- `/a <task>` — reads manifest, auto-detects whether phases are needed
+- `/p <task>` — explicitly invokes planner first, then executes
 
 ---
 
@@ -210,6 +182,7 @@ agent.record_service_documentation(
 - SIMPLIFY=FAIL!
 - SKIP=FAIL!
 - NEVER SIMPLIFY OR SKIP A TEST - JUST FIX THE PROBLEM!
+- STOP=FAIL! When there is authorized work with a clear or already-approved next step, DO IT. NEVER pause to report progress and wait, ask permission for the obvious/authorized next step, offer a menu when one option is clearly correct, or "check in" at a milestone. Drive multi-phase tasks and pipelines through ALL phases and gates to completion in ONE continuous push. A completed phase/gate/milestone is NOT a reason to stop — roll straight into the next. Only stop for a GENUINE user-decision blocker: a real fork with material trade-offs, an unauthorized destructive/irreversible action, or a hard technical dead-end. Report by DOING and summarizing after, never by stopping before. Commit via `git -C` yourself; never hand a commit to me.
 - If I appear to be running on a Windows system that does not have WSL then be sure check for other tools like Python, the Git "bash toolbox" and PowerShell, taking this into account when handling file edits, searches etc.
 - Always add UTF-8 unicode support explicitly to python scripts.
 - Always use SSH keys when available!

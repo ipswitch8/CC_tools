@@ -21,12 +21,22 @@ if ! command -v jq &>/dev/null; then
   exit 2
 fi
 
-PAYLOAD=$(cat)
-TOOL_NAME=$(echo "$PAYLOAD" | jq -r '.tool_name // ""')
+BLOB=$(cat)
+TOOL_NAME=$(echo "$BLOB" | jq -r '.tool_name // ""')
 
-# Gate enforcement: block Write/Edit if gates pending
-STATE_FILE=".claude/phase-state.json"
-PIPELINE_FILE=".claude/pipeline.json"
+# Gate enforcement: block Write/Edit if gates pending.
+# Resolve the per-session pipeline base (namespaced under .claude/pipelines/<id>/,
+# id defaults to the session id) exactly like phase-gate.sh / validate-pipeline.sh.
+# The old literal "<id>" placeholder never resolved, so this whole block was dead
+# and no gate was ever enforced.
+_SID=$(printf '%s' "$BLOB" | jq -r '.session_id // ""' 2>/dev/null || echo "")
+if [ -f "$(dirname "${BASH_SOURCE[0]}")/pipeline-lib.sh" ]; then
+  . "$(dirname "${BASH_SOURCE[0]}")/pipeline-lib.sh"
+  _BASE=$(resolve_pipeline_base "$_SID" 2>/dev/null || echo ".claude")
+else _BASE=".claude"; fi
+[ -n "$_BASE" ] || _BASE=".claude"
+STATE_FILE="$_BASE/phase-""state.json"
+PIPELINE_FILE="$_BASE/pipeline.json"
 
 if [ -f "$STATE_FILE" ] && [ -f "$PIPELINE_FILE" ]; then
 
@@ -36,7 +46,7 @@ if [ -f "$STATE_FILE" ] && [ -f "$PIPELINE_FILE" ]; then
   # .tool_input.command (not .file_path); its content scan happens
   # in the Bash/PowerShell command block below.
   if [[ "$TOOL_NAME" == "Write" || "$TOOL_NAME" == "Edit" || "$TOOL_NAME" == "MultiEdit" ]]; then
-    FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.file_path // ""')
+    FILE_PATH=$(echo "$BLOB" | jq -r '.tool_input.file_path // ""')
     if echo "$FILE_PATH" | grep -qF 'phase-state'; then
       echo "Gate enforcement: Cannot modify phase-state.json via ${TOOL_NAME} -- all state mutations are managed
 exclusively by the stop hook." >&2
@@ -49,11 +59,11 @@ issue Bash unlock tokens." >&2
     fi
     CONTENT=""
     if [ "$TOOL_NAME" = "Write" ]; then
-      CONTENT=$(echo "$PAYLOAD" | jq -r '.tool_input.content // ""')
+      CONTENT=$(echo "$BLOB" | jq -r '.tool_input.content // ""')
     elif [ "$TOOL_NAME" = "Edit" ]; then
-      CONTENT=$(echo "$PAYLOAD" | jq -r '.tool_input.new_string // ""')
+      CONTENT=$(echo "$BLOB" | jq -r '.tool_input.new_string // ""')
     elif [ "$TOOL_NAME" = "MultiEdit" ]; then
-      CONTENT=$(echo "$PAYLOAD" | jq -r '[.tool_input.edits[]?.new_string // ""] | join("\n")')
+      CONTENT=$(echo "$BLOB" | jq -r '[.tool_input.edits[]?.new_string // ""] | join("\n")')
     fi
     if echo "$CONTENT" | grep -qF 'phase-state'; then
       echo "Gate enforcement: File contents reference phase-state.json -- this could be used to bypass gate
@@ -116,14 +126,15 @@ unlock tokens. Only the phase-gate hook can issue them." >&2
         HAS_REMEDIATION=$(echo "$GATE_RESULTS" | jq 'to_entries | any(.value == "remediation")')
         if [ "$HAS_REMEDIATION" = "true" ]; then
           : # Remediation mode -- tools allowed for fixes
-        elif { [ "$TOOL_NAME" = "Bash" ] || [ "$TOOL_NAME" = "PowerShell" ]; } && [ -f ".claude/gate-bash-unlock" ]; then
-          # Check if the nonce is still valid (not expired)
-          NONCE_EXPIRES=$(jq -r '.expires // 0' ".claude/gate-bash-unlock" 2>/dev/null || echo "0")
+        elif { [ "$TOOL_NAME" = "Bash" ] || [ "$TOOL_NAME" = "PowerShell" ]; } && [ -f "$_BASE/gate-bash-unlock" ]; then
+          # Check if the nonce is still valid (not expired). Namespaced under the
+          # session's pipeline base so concurrent pipelines cannot share a nonce.
+          NONCE_EXPIRES=$(jq -r '.expires // 0' "$_BASE/gate-bash-unlock" 2>/dev/null || echo "0")
           NOW=$(date +%s)
           if [ "$NOW" -le "$NONCE_EXPIRES" ] || [ "$NONCE_EXPIRES" = "0" ]; then
             : # Bash/PowerShell unlock is valid
           else
-            rm -f ".claude/gate-bash-unlock" 2>/dev/null || true
+            rm -f "$_BASE/gate-bash-unlock" 2>/dev/null || true
             PHASE_NAME=$(jq -r ".phases[$IDX].name" "$PIPELINE_FILE")
             echo "Gate enforcement: shell unlock expired for ${PHASE_NAME}. Re-invoke the pending gate agent
 '${NEXT_GATE}'." >&2
@@ -139,7 +150,7 @@ ${PHASE_NAME}. Invoke ${NEXT_GATE} before continuing." >&2
 
       # Block git commit if gates haven't all passed (Bash OR PowerShell).
       if [ "$TOOL_NAME" = "Bash" ] || [ "$TOOL_NAME" = "PowerShell" ]; then
-        COMMAND=$(echo "$PAYLOAD" | jq -r '.tool_input.command // ""')
+        COMMAND=$(echo "$BLOB" | jq -r '.tool_input.command // ""')
 
         if echo "$COMMAND" | grep -qP '(?<![#"\x27])git\s+commit\b'; then
           if [ -n "$NEXT_GATE" ]; then
@@ -215,7 +226,7 @@ fi
 # `cd subdir` (Claude Code's Bash tool persists cwd across calls).
 PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-}"
 if [ -z "$PROJECT_ROOT" ]; then
-  PROJECT_ROOT=$(echo "$PAYLOAD" | jq -r '.cwd // empty')
+  PROJECT_ROOT=$(echo "$BLOB" | jq -r '.cwd // empty')
 fi
 if [ -z "$PROJECT_ROOT" ]; then
   PROJECT_ROOT="$PWD"
@@ -332,22 +343,22 @@ approval first." >&2
 }
 
 if [[ "$TOOL_NAME" == "Read" ]]; then
-  FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.file_path // .tool_input.path // ""')
+  FILE_PATH=$(echo "$BLOB" | jq -r '.tool_input.file_path // .tool_input.path // ""')
   check_path_boundary "$FILE_PATH"
 fi
 
 if [[ "$TOOL_NAME" == "Glob" || "$TOOL_NAME" == "Grep" ]]; then
-  FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.path // ""')
+  FILE_PATH=$(echo "$BLOB" | jq -r '.tool_input.path // ""')
   check_path_boundary "$FILE_PATH"
 fi
 
 if [[ "$TOOL_NAME" == "Write" || "$TOOL_NAME" == "Edit" || "$TOOL_NAME" == "MultiEdit" ]]; then
-  FILE_PATH=$(echo "$PAYLOAD" | jq -r '.tool_input.file_path // ""')
+  FILE_PATH=$(echo "$BLOB" | jq -r '.tool_input.file_path // ""')
   check_path_boundary "$FILE_PATH"
 fi
 
 if [[ "$TOOL_NAME" == "Bash" || "$TOOL_NAME" == "PowerShell" ]]; then
-  COMMAND=$(echo "$PAYLOAD" | jq -r '.tool_input.command // ""')
+  COMMAND=$(echo "$BLOB" | jq -r '.tool_input.command // ""')
 
   # Path regex: leading `/` followed by one or more non-`/` chars,
   # optionally followed by additional `/segment` runs. Requires at
@@ -383,7 +394,7 @@ done
 
 # Bash/PowerShell commands that touch the network
 if [ "$TOOL_NAME" = "Bash" ] || [ "$TOOL_NAME" = "PowerShell" ]; then
-  COMMAND=$(echo "$PAYLOAD" | jq -r '.tool_input.command // ""')
+  COMMAND=$(echo "$BLOB" | jq -r '.tool_input.command // ""')
 
   INTERNET_PATTERNS=(
     "curl "    "wget "     " fetch "
