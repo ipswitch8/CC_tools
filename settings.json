@@ -28,7 +28,7 @@
           },
           {
             "type": "command",
-            "command": "~/.claude/hooks/inject-stop-fail.sh"
+            "command": "~/.claude/hooks/inject-gate-rules.sh"
           }
         ]
       }
