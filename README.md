@@ -22,7 +22,7 @@ Q: What is the docs folder?\
 A: Just one doc at the moment, mostly about changes in the agent registry that could affect other commands if you grabbed v1 of this repo.\
 \
 Q: Where did CPSM (the "CC_multi" folder) go?\
-A: Moved to a separate repo: https://github.com/ipswitch8/CPSM\
+A: Moved to a separate repo: https://github.com/ipswitch8/CPSM \
 \
 Q: What if I need an agent that isn't in this collection?\
 A: If you need a different agent:
